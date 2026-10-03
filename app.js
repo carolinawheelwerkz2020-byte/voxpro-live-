@@ -16,6 +16,7 @@ const PRESETS = {
 };
 const DEFAULT_STATE = {
   key: 0, scale: "major", preset: "pop", monitor: true,
+  volume: 80, feedbackGuard: true, tipDismissed: false,
   tune: { on:true, strength:85, retune:60 },
   deess: { on:true, amount:45 },
   comp: { on:true, amount:55 },
@@ -35,6 +36,7 @@ function save() { try { localStorage.setItem("voxpro.v1", JSON.stringify(S)); } 
 /* ---------------- audio engine ---------------- */
 let ctx = null, vox = null, stream = null;
 let comp, warmthF, presenceF, airF, master, reverbSend, convolver, delaySend, delayN, fbGain;
+let micHP, limiter, outGain;
 let live = false, meterFreq = null, meterLevel = 0;
 
 function makeImpulse(seconds, decay) {
@@ -53,7 +55,7 @@ async function goLive() {
   try {
     setStatus("idle", "Starting…");
     stream = await navigator.mediaDevices.getUserMedia({
-      audio: { echoCancellation: false, noiseSuppression: false, autoGainControl: false }
+      audio: { echoCancellation: S.feedbackGuard, noiseSuppression: false, autoGainControl: false }
     });
     const AC = window.AudioContext || window.webkitAudioContext;
     ctx = new AC({ latencyHint: "interactive" });
@@ -73,21 +75,27 @@ async function goLive() {
     presenceF = ctx.createBiquadFilter(); presenceF.type = "peaking"; presenceF.frequency.value = 3200; presenceF.Q.value = 1;
     airF = ctx.createBiquadFilter(); airF.type = "highshelf"; airF.frequency.value = 10000;
     master = ctx.createGain();
+    limiter = ctx.createDynamicsCompressor();
+    limiter.threshold.value = -8; limiter.knee.value = 0; limiter.ratio.value = 20;
+    limiter.attack.value = 0.002; limiter.release.value = 0.12;
+    outGain = ctx.createGain();
+    micHP = ctx.createBiquadFilter(); micHP.type = "highpass"; micHP.frequency.value = 100;
     reverbSend = ctx.createGain();
     convolver = ctx.createConvolver(); convolver.buffer = makeImpulse(1.8, 2.6);
     delaySend = ctx.createGain();
     delayN = ctx.createDelay(1); delayN.delayTime.value = 0.27;
     fbGain = ctx.createGain(); fbGain.gain.value = 0.32;
 
-    src.connect(vox);
+    src.connect(micHP); micHP.connect(vox);
     vox.connect(comp); comp.connect(warmthF); warmthF.connect(presenceF);
-    presenceF.connect(airF); airF.connect(master); master.connect(ctx.destination);
+    presenceF.connect(airF); airF.connect(master);
+    master.connect(limiter); limiter.connect(outGain); outGain.connect(ctx.destination);
     airF.connect(reverbSend); reverbSend.connect(convolver); convolver.connect(master);
     airF.connect(delaySend); delaySend.connect(delayN);
     delayN.connect(fbGain); fbGain.connect(delayN); delayN.connect(master);
 
     pushSettings(); applyFx();
-    master.gain.value = S.monitor ? 1 : 0;
+    outGain.gain.value = S.monitor ? S.volume / 100 : 0;
     showLatency();
 
     live = true;
@@ -329,12 +337,35 @@ document.getElementById("monitorToggle").addEventListener("click", function() {
   S.monitor = !S.monitor; save();
   this.classList.toggle("on", S.monitor);
   this.setAttribute("aria-pressed", S.monitor);
-  if (ctx && master) master.gain.value = S.monitor ? 1 : 0;
+  if (ctx && outGain) outGain.gain.value = S.monitor ? S.volume / 100 : 0;
 });
 if (!S.monitor) {
   const t = document.getElementById("monitorToggle");
   t.classList.remove("on"); t.setAttribute("aria-pressed", "false");
 }
+
+const volSlider = document.getElementById("volSlider");
+volSlider.value = S.volume;
+document.getElementById("volOut").textContent = S.volume;
+volSlider.addEventListener("input", () => {
+  S.volume = parseInt(volSlider.value, 10); save();
+  document.getElementById("volOut").textContent = S.volume;
+  if (ctx && outGain && S.monitor) outGain.gain.value = S.volume / 100;
+});
+
+const fbGuard = document.getElementById("fbGuardToggle");
+if (!S.feedbackGuard) { fbGuard.classList.remove("on"); fbGuard.setAttribute("aria-pressed", "false"); }
+fbGuard.addEventListener("click", () => {
+  S.feedbackGuard = !S.feedbackGuard; save();
+  fbGuard.classList.toggle("on", S.feedbackGuard);
+  fbGuard.setAttribute("aria-pressed", S.feedbackGuard);
+});
+
+const fbTip = document.getElementById("fbTip");
+if (!S.tipDismissed) fbTip.hidden = false;
+document.getElementById("fbTipX").addEventListener("click", () => {
+  S.tipDismissed = true; save(); fbTip.hidden = true;
+});
 
 drawMeter();
 if ("serviceWorker" in navigator) {

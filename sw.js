@@ -1,5 +1,5 @@
 /* VoxPro Live service worker — app-shell offline cache */
-const CACHE = "voxpro-live-v1";
+const CACHE = "voxpro-live-v2";
 const ASSETS = [
   "./", "./index.html", "./styles.css", "./app.js", "./worklet.js",
   "./manifest.json", "./icon.svg",

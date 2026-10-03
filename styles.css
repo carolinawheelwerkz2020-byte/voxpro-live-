@@ -51,6 +51,10 @@ main{flex:1; padding:6px 16px 90px;}
   box-shadow:0 8px 28px rgba(56,189,248,.35); cursor:pointer;}
 .go-live:active{transform:scale(.98);}
 .go-live.stop{background:linear-gradient(180deg,#fca5a5,#f87171); box-shadow:0 8px 28px rgba(248,113,113,.3);}
+.fb-tip{position:relative; background:#2a1a10; border:1px solid #7c4a1e; border-radius:12px;
+  padding:10px 36px 10px 12px; font-size:13px; line-height:1.5; color:#f5d7ae; margin:10px 0 0;}
+.fb-tip button{position:absolute; top:6px; right:6px; background:none; border:0; color:#f5d7ae;
+  font-size:15px; padding:6px; cursor:pointer;}
 .hint{text-align:center; color:var(--muted); font-size:13.5px; margin:10px 4px 18px; line-height:1.5;}
 
 .row-label{font-size:12px; font-weight:700; letter-spacing:1.4px; text-transform:uppercase;

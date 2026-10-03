@@ -30,6 +30,7 @@
       </div>
 
       <button id="goLive" class="go-live">🎤 Go Live</button>
+      <div id="fbTip" class="fb-tip" hidden>🔊 Hearing squealing? That's feedback — plug in earbuds, or turn the output volume down in the Output tab. <button id="fbTipX" aria-label="Dismiss">✕</button></div>
       <p class="hint" id="liveHint">Tap Go Live, allow the mic, and sing. Your tuned voice plays back in real time.</p>
 
       <div class="row-label">Key</div>
@@ -54,6 +55,14 @@
         <div class="card-row">
           <div><div class="card-title">Hear yourself</div><div class="card-sub">Live monitor through this phone</div></div>
           <button id="monitorToggle" class="toggle on" aria-pressed="true"><span></span></button>
+        </div>
+        <div class="slider-row"><label>Output volume</label><input type="range" id="volSlider" min="0" max="100" value="80"><output id="volOut">80</output></div>
+      </div>
+
+      <div class="card">
+        <div class="card-row">
+          <div><div class="card-title">Feedback guard</div><div class="card-sub">Kills the mic↔speaker squeal loop. Takes effect next time you tap Go Live.</div></div>
+          <button id="fbGuardToggle" class="toggle on" aria-pressed="true"><span></span></button>
         </div>
       </div>
 
