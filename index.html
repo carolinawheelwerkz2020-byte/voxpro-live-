@@ -41,6 +41,36 @@
 
       <div class="row-label">Preset</div>
       <div id="presets" class="chips"></div>
+
+      <div class="row-label">Auto-Tune</div>
+      <div class="slider-row"><label>Amount</label><input type="range" id="atKnob" min="0" max="100" value="85"><output id="atOut">85</output></div>
+      <p class="hint" style="margin-top:2px">The hard-tune robot effect lives at 100.</p>
+    </section>
+
+    <!-- STUDIO -->
+    <section id="screen-studio" class="screen">
+      <p class="chain-note">Upload a vocal take, tune it with the full studio engine, preview and save the file.</p>
+      <div class="card">
+        <div class="card-title">1 · Pick a vocal file</div>
+        <label class="file-btn" for="studioFile">📁 Choose audio file</label>
+        <input type="file" id="studioFile" accept="audio/*" hidden>
+        <div id="studioFileInfo" class="card-sub"></div>
+      </div>
+      <div class="card">
+        <div class="card-title">2 · Tune it</div>
+        <div class="card-sub" id="studioSettingsLine"></div>
+        <div style="margin-top:10px"><button id="studioProcess" class="go-live" disabled>✨ Process vocal</button></div>
+        <div id="studioStatus" class="card-sub" style="margin-top:8px"></div>
+      </div>
+      <div class="card" id="studioResult" hidden>
+        <div class="card-title">3 · Preview &amp; save</div>
+        <div class="card-sub" id="studioStats"></div>
+        <div class="btn-row">
+          <button id="studioPlay" class="mini-btn">▶ Play</button>
+          <button id="studioStop" class="mini-btn" disabled>■ Stop</button>
+          <button id="studioDownload" class="mini-btn primary">⬇ Save WAV</button>
+        </div>
+      </div>
     </section>
 
     <!-- CHAIN -->
@@ -97,10 +127,12 @@
 
   <nav>
     <button data-screen="screen-live" class="active"><span class="ico">◉</span>Live</button>
+    <button data-screen="screen-studio"><span class="ico">🎛</span>Studio</button>
     <button data-screen="screen-chain"><span class="ico">≣</span>Chain</button>
     <button data-screen="screen-output"><span class="ico">🔊</span>Output</button>
   </nav>
 </div>
+<script src="studio-engine.js"></script>
 <script src="app.js"></script>
 </body>
 </html>

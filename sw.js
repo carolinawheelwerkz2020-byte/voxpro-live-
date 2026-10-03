@@ -1,8 +1,8 @@
 /* VoxPro Live service worker — app-shell offline cache */
-const CACHE = "voxpro-live-v2";
+const CACHE = "voxpro-live-v3";
 const ASSETS = [
   "./", "./index.html", "./styles.css", "./app.js", "./worklet.js",
-  "./manifest.json", "./icon.svg",
+  "./studio-engine.js", "./manifest.json", "./icon.svg",
 ];
 self.addEventListener("install", (e) => {
   e.waitUntil(caches.open(CACHE).then((c) => c.addAll(ASSETS)).then(() => self.skipWaiting()));

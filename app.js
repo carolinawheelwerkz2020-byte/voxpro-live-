@@ -39,9 +39,9 @@ let comp, warmthF, presenceF, airF, master, reverbSend, convolver, delaySend, de
 let micHP, limiter, outGain;
 let live = false, meterFreq = null, meterLevel = 0;
 
-function makeImpulse(seconds, decay) {
-  const rate = ctx.sampleRate, len = Math.floor(rate * seconds);
-  const buf = ctx.createBuffer(2, len, rate);
+function makeImpulse(ac, seconds, decay) {
+  const rate = ac.sampleRate, len = Math.floor(rate * seconds);
+  const buf = ac.createBuffer(2, len, rate);
   for (let ch = 0; ch < 2; ch++) {
     const d = buf.getChannelData(ch);
     for (let i = 0; i < len; i++) d[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / len, decay);
@@ -81,7 +81,7 @@ async function goLive() {
     outGain = ctx.createGain();
     micHP = ctx.createBiquadFilter(); micHP.type = "highpass"; micHP.frequency.value = 100;
     reverbSend = ctx.createGain();
-    convolver = ctx.createConvolver(); convolver.buffer = makeImpulse(1.8, 2.6);
+    convolver = ctx.createConvolver(); convolver.buffer = makeImpulse(ctx, 1.8, 2.6);
     delaySend = ctx.createGain();
     delayN = ctx.createDelay(1); delayN.delayTime.value = 0.27;
     fbGain = ctx.createGain(); fbGain.gain.value = 0.32;
@@ -276,13 +276,29 @@ function applyPreset(id) {
   S.deess = JSON.parse(JSON.stringify(p.deess));
   S.comp = JSON.parse(JSON.stringify(p.comp));
   S.warmth = p.warmth; S.clarity = p.clarity; S.reverb = p.reverb; S.delay = p.delay;
-  save(); pushSettings(); applyFx(); renderChain();
+  save(); pushSettings(); applyFx(); renderChain(); syncAtKnob();
   presetsEl.querySelectorAll("button").forEach(x => x.classList.toggle("sel", x.dataset.preset === id));
 }
 
+/* big Auto-Tune knob on the Live screen: one control, strength + speed together */
+const atKnob = document.getElementById("atKnob");
+function syncAtKnob() {
+  atKnob.value = S.tune.strength;
+  document.getElementById("atOut").textContent = S.tune.strength;
+}
+atKnob.addEventListener("input", () => {
+  const v = parseInt(atKnob.value, 10);
+  S.tune.on = true; S.tune.strength = v; S.tune.retune = v;
+  S.preset = "custom";
+  presetsEl.querySelectorAll("button").forEach(x => x.classList.remove("sel"));
+  document.getElementById("atOut").textContent = v;
+  save(); pushSettings(); renderChain();
+});
+syncAtKnob();
+
 /* chain screen */
 const STAGES = [
-  { id:"tune", name:"Tune", sub:"Waves Tune-style pitch correction", sliders:[
+  { id:"tune", name:"Auto-Tune", sub:"Waves Tune-style pitch correction", sliders:[
     { key:"strength", label:"Strength" }, { key:"retune", label:"Retune speed" } ] },
   { id:"deess", name:"De-Ess", sub:"Tames harsh S sounds", sliders:[ { key:"amount", label:"Amount" } ] },
   { id:"comp", name:"Compress", sub:"RVox-style vocal glue", sliders:[ { key:"amount", label:"Amount" } ] },
@@ -366,6 +382,177 @@ if (!S.tipDismissed) fbTip.hidden = false;
 document.getElementById("fbTipX").addEventListener("click", () => {
   S.tipDismissed = true; save(); fbTip.hidden = true;
 });
+
+/* ---------------- Studio: upload -> tune -> save ---------------- */
+let studioBuf = null;       // { mono, sampleRate, name, duration }
+let studioRendered = null;  // AudioBuffer with FX
+let studioSrcNode = null, playbackCtx = null;
+
+function setStudioStatus(t) { document.getElementById("studioStatus").textContent = t || ""; }
+function scaleLabel() { const s = SCALES.find(x => x.id === S.scale); return s ? s.label : S.scale; }
+function presetLabel() {
+  if (S.preset === "custom") return "Custom";
+  return PRESETS[S.preset] ? PRESETS[S.preset].label : S.preset;
+}
+function updateStudioSettingsLine() {
+  document.getElementById("studioSettingsLine").textContent =
+    "Tuning to " + NOTE_NAMES[S.key] + " " + scaleLabel() + " · " + presetLabel() +
+    " — change key, scale or preset on the Live tab.";
+}
+function studioSettings() {
+  return {
+    tune: S.tune.on, strength: S.tune.strength / 100, retune: S.tune.retune / 100,
+    maxShift: 3, key: S.key, scale: S.scale,
+    clarity: S.clarity / 100, warmth: S.warmth / 100,
+    deEss: S.deess.on ? S.deess.amount / 100 : 0,
+    compression: S.comp.on ? S.comp.amount / 100 : 0,
+    reverb: S.reverb / 100, delay: S.delay / 100, gain: 0,
+  };
+}
+
+document.getElementById("studioFile").addEventListener("change", async (e) => {
+  const f = e.target.files[0];
+  if (!f) return;
+  setStudioStatus("Loading file…");
+  try {
+    const ab = await f.arrayBuffer();
+    const AC = window.AudioContext || window.webkitAudioContext;
+    const tmp = new AC();
+    const decoded = await tmp.decodeAudioData(ab);
+    tmp.close();
+    const ch0 = decoded.getChannelData(0);
+    let mono;
+    if (decoded.numberOfChannels > 1) {
+      const ch1 = decoded.getChannelData(1);
+      mono = new Float32Array(ch0.length);
+      for (let i = 0; i < mono.length; i++) mono[i] = (ch0[i] + ch1[i]) / 2;
+    } else {
+      mono = Float32Array.from(ch0);
+    }
+    studioBuf = { mono, sampleRate: decoded.sampleRate, name: f.name, duration: decoded.duration };
+    studioRendered = null;
+    document.getElementById("studioResult").hidden = true;
+    document.getElementById("studioFileInfo").textContent =
+      f.name + " · " + decoded.duration.toFixed(1) + "s · " + (decoded.sampleRate / 1000).toFixed(1) + "kHz";
+    document.getElementById("studioProcess").disabled = false;
+    updateStudioSettingsLine();
+    setStudioStatus("");
+  } catch (err) {
+    setStudioStatus("Couldn't read that file. Try WAV, MP3 or M4A.");
+  }
+});
+
+async function renderOfflineFx(tunedMono, sampleRate) {
+  const len = tunedMono.length;
+  const off = new OfflineAudioContext(2, len, sampleRate);
+  const buf = off.createBuffer(1, len, sampleRate);
+  buf.getChannelData(0).set(tunedMono);
+  const src = off.createBufferSource(); src.buffer = buf;
+  const c = S.comp.on ? S.comp.amount / 100 : 0;
+  const comp = off.createDynamicsCompressor();
+  comp.threshold.value = -6 - c * 30; comp.ratio.value = 1 + c * 7;
+  comp.attack.value = 0.004; comp.release.value = 0.2; comp.knee.value = 12;
+  const wf = off.createBiquadFilter(); wf.type = "lowshelf"; wf.frequency.value = 200; wf.gain.value = (S.warmth / 100) * 9;
+  const pf = off.createBiquadFilter(); pf.type = "peaking"; pf.frequency.value = 3200; pf.Q.value = 1; pf.gain.value = (S.clarity / 100) * 6;
+  const af = off.createBiquadFilter(); af.type = "highshelf"; af.frequency.value = 10000; af.gain.value = (S.clarity / 100) * 7;
+  const mst = off.createGain();
+  const verb = off.createConvolver(); verb.buffer = makeImpulse(off, 1.8, 2.6);
+  const rSend = off.createGain(); rSend.gain.value = (S.reverb / 100) * 0.9;
+  const dly = off.createDelay(1); dly.delayTime.value = 0.27;
+  const fb = off.createGain(); fb.gain.value = 0.32;
+  const dSend = off.createGain(); dSend.gain.value = (S.delay / 100) * 0.7;
+  src.connect(comp); comp.connect(wf); wf.connect(pf); pf.connect(af); af.connect(mst); mst.connect(off.destination);
+  af.connect(rSend); rSend.connect(verb); verb.connect(mst);
+  af.connect(dSend); dSend.connect(dly); dly.connect(fb); fb.connect(dly); dly.connect(mst);
+  src.start();
+  return off.startRendering();
+}
+
+document.getElementById("studioProcess").addEventListener("click", async () => {
+  if (!studioBuf || typeof VoxStudio === "undefined") return;
+  const btn = document.getElementById("studioProcess");
+  btn.disabled = true;
+  document.getElementById("studioResult").hidden = true;
+  stopStudioPlayback();
+  try {
+    updateStudioSettingsLine();
+    const res = await VoxStudio.processTake(studioBuf.mono, studioBuf.sampleRate, studioSettings(), setStudioStatus);
+    setStudioStatus("Adding effects…");
+    await new Promise(r => setTimeout(r, 30));
+    studioRendered = await renderOfflineFx(res.tuned, studioBuf.sampleRate);
+    document.getElementById("studioStats").textContent =
+      "In tune: " + Math.round(res.beforePct * 100) + "% → " + Math.round(res.afterPct * 100) + "%" +
+      (res.corrected ? "" : " (already in tune — nothing to fix)");
+    document.getElementById("studioResult").hidden = false;
+    setStudioStatus("Done. Play it or save the WAV.");
+  } catch (err) {
+    console.error(err);
+    setStudioStatus("Processing failed: " + (err && err.message ? err.message : err));
+  }
+  btn.disabled = false;
+});
+
+function ensurePlaybackCtx() {
+  if (!playbackCtx) {
+    const AC = window.AudioContext || window.webkitAudioContext;
+    playbackCtx = new AC();
+  }
+  if (playbackCtx.state === "suspended") playbackCtx.resume();
+  return playbackCtx;
+}
+function stopStudioPlayback() {
+  try { if (studioSrcNode) studioSrcNode.stop(); } catch (e) {}
+  studioSrcNode = null;
+  document.getElementById("studioStop").disabled = true;
+  document.getElementById("studioPlay").disabled = false;
+}
+document.getElementById("studioPlay").addEventListener("click", () => {
+  if (!studioRendered) return;
+  stopStudioPlayback();
+  const ac = ensurePlaybackCtx();
+  studioSrcNode = ac.createBufferSource();
+  studioSrcNode.buffer = studioRendered;
+  studioSrcNode.connect(ac.destination);
+  studioSrcNode.onended = () => { studioSrcNode = null; stopStudioPlayback(); };
+  studioSrcNode.start();
+  document.getElementById("studioStop").disabled = false;
+  document.getElementById("studioPlay").disabled = true;
+});
+document.getElementById("studioStop").addEventListener("click", stopStudioPlayback);
+
+function audioBufferToWav(ab) {
+  const nCh = ab.numberOfChannels, sr = ab.sampleRate, n = ab.length;
+  const chs = [];
+  for (let c = 0; c < nCh; c++) chs.push(ab.getChannelData(c));
+  const bytes = 44 + n * nCh * 2;
+  const buf = new ArrayBuffer(bytes), v = new DataView(buf);
+  const wstr = (o, s) => { for (let i = 0; i < s.length; i++) v.setUint8(o + i, s.charCodeAt(i)); };
+  wstr(0, "RIFF"); v.setUint32(4, bytes - 8, true); wstr(8, "WAVE"); wstr(12, "fmt ");
+  v.setUint32(16, 16, true); v.setUint16(20, 1, true); v.setUint16(22, nCh, true);
+  v.setUint32(24, sr, true); v.setUint32(28, sr * nCh * 2, true);
+  v.setUint16(32, nCh * 2, true); v.setUint16(34, 16, true);
+  wstr(36, "data"); v.setUint32(40, n * nCh * 2, true);
+  let o = 44;
+  for (let i = 0; i < n; i++) {
+    for (let c = 0; c < nCh; c++) {
+      const s = Math.max(-1, Math.min(1, chs[c][i]));
+      v.setInt16(o, s < 0 ? s * 32768 : s * 32767, true);
+      o += 2;
+    }
+  }
+  return new Blob([buf], { type: "audio/wav" });
+}
+document.getElementById("studioDownload").addEventListener("click", () => {
+  if (!studioRendered || !studioBuf) return;
+  const blob = audioBufferToWav(studioRendered);
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(blob);
+  const base = studioBuf.name.replace(/\.[^.]+$/, "") || "voxpro";
+  a.download = base + "-tuned.wav";
+  document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(() => URL.revokeObjectURL(a.href), 5000);
+});
+updateStudioSettingsLine();
 
 drawMeter();
 if ("serviceWorker" in navigator) {
