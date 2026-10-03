@@ -1,0 +1,97 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
+<meta name="theme-color" content="#070b12">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="VoxPro Live">
+<title>VoxPro Live — real-time vocal processor</title>
+<link rel="manifest" href="manifest.json">
+<link rel="apple-touch-icon" href="icon.svg">
+<link rel="icon" type="image/svg+xml" href="icon.svg">
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+<div id="app">
+  <header>
+    <div class="brand"><span class="mark" aria-hidden="true"></span><span>VoxPro <em>Live</em></span></div>
+    <div id="status" class="status idle"><span class="dot"></span><span id="statusText">Ready</span></div>
+  </header>
+
+  <main>
+    <!-- LIVE -->
+    <section id="screen-live" class="screen active">
+      <div class="meter-card">
+        <canvas id="meter" width="640" height="300"></canvas>
+        <div class="note-readout"><span id="noteName">—</span><span id="cents">+0¢</span></div>
+      </div>
+
+      <button id="goLive" class="go-live">🎤 Go Live</button>
+      <p class="hint" id="liveHint">Tap Go Live, allow the mic, and sing. Your tuned voice plays back in real time.</p>
+
+      <div class="row-label">Key</div>
+      <div id="keys" class="keys"></div>
+
+      <div class="row-label">Scale</div>
+      <div id="scales" class="chips"></div>
+
+      <div class="row-label">Preset</div>
+      <div id="presets" class="chips"></div>
+    </section>
+
+    <!-- CHAIN -->
+    <section id="screen-chain" class="screen">
+      <p class="chain-note">Waves-style vocal chain. Each stage runs live on your voice.</p>
+      <div id="stages"></div>
+    </section>
+
+    <!-- OUTPUT -->
+    <section id="screen-output" class="screen">
+      <div class="card">
+        <div class="card-row">
+          <div><div class="card-title">Hear yourself</div><div class="card-sub">Live monitor through this phone</div></div>
+          <button id="monitorToggle" class="toggle on" aria-pressed="true"><span></span></button>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-title">Bluetooth speaker</div>
+        <div class="card-sub">For karaoke night — the room hears the finished mix.</div>
+        <ol class="steps">
+          <li>Open iPhone <b>Settings → Bluetooth</b> and pair your speaker.</li>
+          <li>Come back here and tap <b>Go Live</b> — sound follows automatically.</li>
+          <li>Keep this app in the foreground while you sing.</li>
+        </ol>
+        <div class="warn">Bluetooth adds ~200ms of delay, so the <b>singer</b> should monitor through wired earbuds or the phone speaker — not the Bluetooth speaker. The room won't notice the delay.</div>
+      </div>
+
+      <div class="card">
+        <div class="card-row">
+          <div><div class="card-title">Output latency</div><div class="card-sub" id="latencySub">Measured when live</div></div>
+          <div id="latency" class="latency">—</div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-title">Feedback tips</div>
+        <ul class="tips">
+          <li>Monitoring through the phone speaker with the mic open can squeal — keep the volume moderate or use earbuds.</li>
+          <li>For music, mic noise-cancellation is off on purpose. Find a quiet-ish spot.</li>
+          <li>Hold the phone 6–12 inches from your mouth, slightly off-axis.</li>
+        </ul>
+      </div>
+    </section>
+  </main>
+
+  <nav>
+    <button data-screen="screen-live" class="active"><span class="ico">◉</span>Live</button>
+    <button data-screen="screen-chain"><span class="ico">≣</span>Chain</button>
+    <button data-screen="screen-output"><span class="ico">🔊</span>Output</button>
+  </nav>
+</div>
+<script src="app.js"></script>
+</body>
+</html>
