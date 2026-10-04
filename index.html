@@ -16,43 +16,122 @@
 </head>
 <body>
 <div id="app">
-  <header>
-    <div class="brand"><span class="mark" aria-hidden="true"></span><span>VoxPro <em>Live</em></span></div>
-    <div id="status" class="status idle"><span class="dot"></span><span id="statusText">Ready</span></div>
+  <header class="topbar">
+    <div class="topbar-row">
+      <div class="brand"><span class="mark" aria-hidden="true"></span><span>VoxPro <em>Live</em></span></div>
+      <div id="status" class="status idle"><span class="dot"></span><span id="statusText">Ready</span></div>
+    </div>
+    <div class="mode-switch">
+      <button id="modeLive" class="active">🎤 Live</button>
+      <button id="modeStudio">🎛 Studio</button>
+    </div>
   </header>
 
   <main>
-    <!-- LIVE -->
-    <section id="screen-live" class="screen active">
+    <!-- LIVE DASHBOARD -->
+    <section id="dash-live" class="dash active">
       <div class="meter-card">
         <canvas id="meter" width="640" height="300"></canvas>
         <div class="note-readout"><span id="noteName">—</span><span id="cents">+0¢</span></div>
       </div>
+      <div id="fbTip" class="fb-tip" hidden>🔊 Hearing squealing? That's feedback — plug in earbuds, or turn the output volume down in the Output panel. <button id="fbTipX" aria-label="Dismiss">✕</button></div>
 
-      <button id="goLive" class="go-live">🎤 Go Live</button>
-      <div id="fbTip" class="fb-tip" hidden>🔊 Hearing squealing? That's feedback — plug in earbuds, or turn the output volume down in the Output tab. <button id="fbTipX" aria-label="Dismiss">✕</button></div>
+      <div class="panels">
+        <section class="panel">
+          <div class="panel-title">Tune <span>Auto-Tune · Key · Scale</span></div>
+          <div class="slider-row"><label>Auto-Tune</label><input type="range" id="atKnob" min="0" max="100" value="85"><output id="atOut">85</output></div>
+          <p class="hint" style="margin:2px 0 8px">The hard-tune robot effect lives at 100.</p>
+          <div class="mini-label">Key</div>
+          <div id="keys" class="keys"></div>
+          <div class="mini-label">Scale</div>
+          <div id="scales" class="chips"></div>
+        </section>
+
+        <section class="panel">
+          <div class="panel-title">Dynamics <span>Gate · De-Ess · Glue</span></div>
+          <div class="ctl">
+            <div class="ctl-head"><span>Noise Gate</span><button id="gateToggle" class="toggle on" aria-pressed="true"><span></span></button></div>
+            <div class="slider-row"><label>Threshold</label><input type="range" id="gateAmount" min="0" max="100" value="30"><output id="gateOut">30</output></div>
+          </div>
+          <div class="ctl">
+            <div class="ctl-head"><span>De-Ess</span><button id="deessToggle" class="toggle on" aria-pressed="true"><span></span></button></div>
+            <div class="slider-row"><label>Amount</label><input type="range" id="deessAmount" min="0" max="100" value="45"><output id="deessOut">45</output></div>
+          </div>
+          <div class="ctl">
+            <div class="ctl-head"><span>Compress</span><button id="compToggle" class="toggle on" aria-pressed="true"><span></span></button></div>
+            <div class="slider-row"><label>Amount</label><input type="range" id="compAmount" min="0" max="100" value="55"><output id="compOut">55</output></div>
+          </div>
+        </section>
+
+        <section class="panel">
+          <div class="panel-title">Tone <span>Warmth · Clarity</span></div>
+          <div class="slider-row"><label>Warmth</label><input type="range" id="warmthSlider" min="0" max="100" value="40"><output id="warmthOut">40</output></div>
+          <div class="slider-row"><label>Clarity</label><input type="range" id="claritySlider" min="0" max="100" value="55"><output id="clarityOut">55</output></div>
+        </section>
+
+        <section class="panel">
+          <div class="panel-title">Space <span>Reverb · Delay · Doubler</span></div>
+          <div class="slider-row"><label>Reverb</label><input type="range" id="reverbSlider" min="0" max="100" value="30"><output id="reverbOut">30</output></div>
+          <div class="slider-row"><label>Delay</label><input type="range" id="delaySlider" min="0" max="100" value="12"><output id="delayOut">12</output></div>
+          <div class="slider-row"><label>Ducking</label><input type="range" id="duckSlider" min="0" max="100" value="35"><output id="duckOut">35</output></div>
+          <p class="hint" style="margin:2px 0 8px">Space dips under your voice so words stay clear.</p>
+          <div class="slider-row"><label>Doubler</label><input type="range" id="doublerSlider" min="0" max="100" value="25"><output id="doublerOut">25</output></div>
+          <div class="slider-row"><label>Tempo</label><button id="tapBtn" class="mini-btn">TAP</button><output id="tapOut">tap the beat</output></div>
+        </section>
+
+        <section class="panel">
+          <div class="panel-title">Voice FX <span>Creative chaos</span></div>
+          <div class="slider-row"><label>Transpose</label><input type="range" id="transposeKnob" min="-12" max="12" step="1" value="0"><output id="transposeOut">0st</output></div>
+          <p class="hint" style="margin:2px 0 8px">Pitch twist, Murda-style. −12 is monster, +12 is chipmunk.</p>
+          <div class="ctl">
+            <div class="ctl-head"><span>Saturation</span><button id="satToggle" class="toggle on" aria-pressed="true"><span></span></button></div>
+            <div class="slider-row"><label>Drive</label><input type="range" id="satAmount" min="0" max="100" value="35"><output id="satOut">35</output></div>
+          </div>
+        </section>
+
+        <section class="panel">
+          <div class="panel-title">My Presets <span>Save the current chain</span></div>
+          <div class="preset-save-row"><input id="presetName" placeholder="Preset name" maxlength="24"><button id="presetSaveBtn">Save</button></div>
+          <div id="customPresets" class="chips" style="margin-top:8px"></div>
+        </section>
+
+        <section class="panel">
+          <div class="panel-title">Output <span>Monitor · Levels</span></div>
+          <div class="card-row">
+            <div><div class="card-title">Hear yourself</div><div class="card-sub">Live monitor through this phone</div></div>
+            <button id="monitorToggle" class="toggle on" aria-pressed="true"><span></span></button>
+          </div>
+          <div class="slider-row"><label>Volume</label><input type="range" id="volSlider" min="0" max="100" value="80"><output id="volOut">80</output></div>
+          <div class="slider-row"><label>Input gain</label><input type="range" id="inGainSlider" min="-12" max="12" value="0"><output id="inGainOut">0dB</output></div>
+          <div class="card-row" style="margin-top:10px">
+            <div><div class="card-title">Feedback guard</div><div class="card-sub">Takes effect next time you tap Go Live.</div></div>
+            <button id="fbGuardToggle" class="toggle on" aria-pressed="true"><span></span></button>
+          </div>
+          <div class="card-row" style="margin-top:10px">
+            <div><div class="card-title">Output latency</div><div class="card-sub" id="latencySub">Measured when live</div></div>
+            <div id="latency" class="latency">—</div>
+          </div>
+          <details class="setup">
+            <summary>Setup &amp; tips</summary>
+            <ol class="steps">
+              <li>Open iPhone <b>Settings → Bluetooth</b> and pair your speaker for the room mix.</li>
+              <li>Come back here and tap <b>Go Live</b> — sound follows automatically.</li>
+              <li>Keep this app in the foreground while you sing.</li>
+            </ol>
+            <div class="warn">Bluetooth adds ~200ms of delay, so the <b>singer</b> should monitor through wired earbuds or the phone speaker — not the Bluetooth speaker. The room won't notice the delay.</div>
+            <ul class="tips">
+              <li>Monitoring through the phone speaker with the mic open can squeal — keep the volume moderate or use earbuds.</li>
+              <li>For music, mic noise-cancellation is off on purpose. Find a quiet-ish spot.</li>
+              <li>Hold the phone 6–12 inches from your mouth, slightly off-axis.</li>
+            </ul>
+          </details>
+        </section>
+      </div>
       <p class="hint" id="liveHint">Tap Go Live, allow the mic, and sing. Your tuned voice plays back in real time.</p>
-
-      <div class="row-label">Key</div>
-      <div id="keys" class="keys"></div>
-
-      <div class="row-label">Scale</div>
-      <div id="scales" class="chips"></div>
-
-      <div class="row-label">Preset</div>
-      <div id="presets" class="chips"></div>
-
-      <div class="row-label">Auto-Tune</div>
-      <div class="slider-row"><label>Amount</label><input type="range" id="atKnob" min="0" max="100" value="85"><output id="atOut">85</output></div>
-      <p class="hint" style="margin-top:2px">The hard-tune robot effect lives at 100.</p>
-
-      <div class="row-label">Voice FX</div>
-      <div class="slider-row"><label>Transpose</label><input type="range" id="transposeKnob" min="-12" max="12" step="1" value="0"><output id="transposeOut">0st</output></div>
-      <p class="hint" style="margin-top:2px">Pitch twist, Murda-style. −12 is monster, +12 is chipmunk.</p>
     </section>
 
     <!-- STUDIO -->
-    <section id="screen-studio" class="screen">
+    <section id="dash-studio" class="dash">
       <p class="chain-note">Upload a vocal take, tune it with the full studio engine, preview and save the file.</p>
       <div class="card">
         <div class="card-title">1 · Pick a vocal file</div>
@@ -76,66 +155,12 @@
         </div>
       </div>
     </section>
-
-    <!-- CHAIN -->
-    <section id="screen-chain" class="screen">
-      <p class="chain-note">Waves-style vocal chain. Each stage runs live on your voice.</p>
-      <div id="stages"></div>
-    </section>
-
-    <!-- OUTPUT -->
-    <section id="screen-output" class="screen">
-      <div class="card">
-        <div class="card-row">
-          <div><div class="card-title">Hear yourself</div><div class="card-sub">Live monitor through this phone</div></div>
-          <button id="monitorToggle" class="toggle on" aria-pressed="true"><span></span></button>
-        </div>
-        <div class="slider-row"><label>Output volume</label><input type="range" id="volSlider" min="0" max="100" value="80"><output id="volOut">80</output></div>
-        <div class="slider-row"><label>Input gain</label><input type="range" id="inGainSlider" min="-12" max="12" value="0"><output id="inGainOut">0dB</output></div>
-      </div>
-
-      <div class="card">
-        <div class="card-row">
-          <div><div class="card-title">Feedback guard</div><div class="card-sub">Kills the mic↔speaker squeal loop. Takes effect next time you tap Go Live.</div></div>
-          <button id="fbGuardToggle" class="toggle on" aria-pressed="true"><span></span></button>
-        </div>
-      </div>
-
-      <div class="card">
-        <div class="card-title">Bluetooth speaker</div>
-        <div class="card-sub">For karaoke night — the room hears the finished mix.</div>
-        <ol class="steps">
-          <li>Open iPhone <b>Settings → Bluetooth</b> and pair your speaker.</li>
-          <li>Come back here and tap <b>Go Live</b> — sound follows automatically.</li>
-          <li>Keep this app in the foreground while you sing.</li>
-        </ol>
-        <div class="warn">Bluetooth adds ~200ms of delay, so the <b>singer</b> should monitor through wired earbuds or the phone speaker — not the Bluetooth speaker. The room won't notice the delay.</div>
-      </div>
-
-      <div class="card">
-        <div class="card-row">
-          <div><div class="card-title">Output latency</div><div class="card-sub" id="latencySub">Measured when live</div></div>
-          <div id="latency" class="latency">—</div>
-        </div>
-      </div>
-
-      <div class="card">
-        <div class="card-title">Feedback tips</div>
-        <ul class="tips">
-          <li>Monitoring through the phone speaker with the mic open can squeal — keep the volume moderate or use earbuds.</li>
-          <li>For music, mic noise-cancellation is off on purpose. Find a quiet-ish spot.</li>
-          <li>Hold the phone 6–12 inches from your mouth, slightly off-axis.</li>
-        </ul>
-      </div>
-    </section>
   </main>
 
-  <nav>
-    <button data-screen="screen-live" class="active"><span class="ico">◉</span>Live</button>
-    <button data-screen="screen-studio"><span class="ico">🎛</span>Studio</button>
-    <button data-screen="screen-chain"><span class="ico">≣</span>Chain</button>
-    <button data-screen="screen-output"><span class="ico">🔊</span>Output</button>
-  </nav>
+  <div id="transport">
+    <div id="presets" class="chips scroll"></div>
+    <button id="goLive" class="go-live">🎤 Go Live</button>
+  </div>
 </div>
 <script src="studio-engine.js"></script>
 <script src="app.js"></script>

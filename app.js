@@ -8,11 +8,11 @@ const SCALES = [
   { id:"blues", label:"Blues" }, { id:"chromatic", label:"Chromatic" },
 ];
 const PRESETS = {
-  natural:   { label:"Natural",    tune:{on:true, strength:45, retune:30}, gate:{on:true, amount:30}, deess:{on:true, amount:30}, comp:{on:true, amount:30}, sat:{on:true, amount:25}, warmth:50, clarity:40, reverb:30, delay:8, doubler:20 },
-  pop:       { label:"Modern Pop", tune:{on:true, strength:85, retune:60}, gate:{on:true, amount:30}, deess:{on:true, amount:45}, comp:{on:true, amount:55}, sat:{on:true, amount:35}, warmth:40, clarity:55, reverb:30, delay:12, doubler:25 },
-  hardtune:  { label:"Hard Tune",  tune:{on:true, strength:100, retune:100}, gate:{on:true, amount:30}, deess:{on:true, amount:50}, comp:{on:true, amount:60}, sat:{on:true, amount:45}, warmth:35, clarity:60, reverb:22, delay:14, doubler:15 },
-  ballad:    { label:"Warm Ballad",tune:{on:true, strength:60, retune:35}, gate:{on:true, amount:30}, deess:{on:true, amount:40}, comp:{on:true, amount:35}, sat:{on:true, amount:30}, warmth:70, clarity:35, reverb:45, delay:18, doubler:30 },
-  radio:     { label:"Radio Ready",tune:{on:true, strength:90, retune:75}, gate:{on:true, amount:30}, deess:{on:true, amount:55}, comp:{on:true, amount:75}, sat:{on:true, amount:40}, warmth:45, clarity:65, reverb:20, delay:10, doubler:30 },
+  natural:   { label:"Natural",    tune:{on:true, strength:45, retune:30}, gate:{on:true, amount:30}, deess:{on:true, amount:30}, comp:{on:true, amount:30}, sat:{on:true, amount:25}, warmth:50, clarity:40, reverb:30, delay:8, doubler:20, duck:25 },
+  pop:       { label:"Modern Pop", tune:{on:true, strength:85, retune:60}, gate:{on:true, amount:30}, deess:{on:true, amount:45}, comp:{on:true, amount:55}, sat:{on:true, amount:35}, warmth:40, clarity:55, reverb:30, delay:12, doubler:25, duck:35 },
+  hardtune:  { label:"Hard Tune",  tune:{on:true, strength:100, retune:100}, gate:{on:true, amount:30}, deess:{on:true, amount:50}, comp:{on:true, amount:60}, sat:{on:true, amount:45}, warmth:35, clarity:60, reverb:22, delay:14, doubler:15, duck:30 },
+  ballad:    { label:"Warm Ballad",tune:{on:true, strength:60, retune:35}, gate:{on:true, amount:30}, deess:{on:true, amount:40}, comp:{on:true, amount:35}, sat:{on:true, amount:30}, warmth:70, clarity:35, reverb:45, delay:18, doubler:30, duck:40 },
+  radio:     { label:"Radio Ready",tune:{on:true, strength:90, retune:75}, gate:{on:true, amount:30}, deess:{on:true, amount:55}, comp:{on:true, amount:75}, sat:{on:true, amount:40}, warmth:45, clarity:65, reverb:20, delay:10, doubler:30, duck:30 },
 };
 const DEFAULT_STATE = {
   key: 0, scale: "major", preset: "pop", monitor: true,
@@ -23,7 +23,7 @@ const DEFAULT_STATE = {
   deess: { on:true, amount:45 },
   comp: { on:true, amount:55 },
   sat: { on:true, amount:35 },
-  warmth: 40, clarity: 55, reverb: 30, delay: 12, doubler: 25,
+  warmth: 40, clarity: 55, reverb: 30, delay: 12, doubler: 25, duck: 35,
 };
 
 let S = load();
@@ -41,6 +41,7 @@ let ctx = null, vox = null, stream = null;
 let comp, warmthF, presenceF, airF, master, reverbSend, convolver, delaySend, delayN, fbGain;
 let micHP, limiter, outGain, inTrim, shaper, dblSend;
 let live = false, meterFreq = null, meterLevel = 0;
+let duckEnv = 0, revBase = 0, dlyBase = 0;
 
 /** Soft-clip saturation curve; k<=0 gives a clean linear pass. */
 function makeDriveCurve(k) {
@@ -183,8 +184,8 @@ function applyFx() {
   warmthF.gain.value = (S.warmth / 100) * 9;
   presenceF.gain.value = (S.clarity / 100) * 6;
   airF.gain.value = (S.clarity / 100) * 7;
-  reverbSend.gain.value = (S.reverb / 100) * 0.9;
-  delaySend.gain.value = (S.delay / 100) * 0.7;
+  revBase = (S.reverb / 100) * 0.9; reverbSend.gain.value = revBase;
+  dlyBase = (S.delay / 100) * 0.7; delaySend.gain.value = dlyBase;
 }
 
 function showLatency() {
@@ -240,6 +241,15 @@ function drawMeter() {
     mctx.beginPath(); mctx.arc(cx, cy, 14, 0, 7); mctx.fill();
     mctx.strokeStyle = "#38bdf8"; mctx.lineWidth = 3; mctx.stroke();
   }
+  // Xvox-style ducking: the space sends dip under the vocal so words stay clear
+  if (live && ctx && reverbSend) {
+    const target = Math.min(1, meterLevel * 2);
+    duckEnv += (target - duckEnv) * (target > duckEnv ? 0.4 : 0.03);
+    const dg = 1 - ((S.duck || 0) / 100) * Math.min(1, duckEnv);
+    const t = ctx.currentTime;
+    reverbSend.gain.setTargetAtTime(revBase * dg, t, 0.05);
+    delaySend.gain.setTargetAtTime(dlyBase * dg, t, 0.05);
+  }
   requestAnimationFrame(drawMeter);
 }
 
@@ -261,16 +271,22 @@ setInterval(() => {
   c.className = Math.abs(cents) <= 15 ? "dead" : (cents > 0 ? "sharp" : "flat");
 }, 200);
 
-/* ---------------- UI wiring ---------------- */
-document.querySelectorAll("nav button").forEach(b => {
-  b.addEventListener("click", () => {
-    document.querySelectorAll("nav button").forEach(x => x.classList.remove("active"));
-    document.querySelectorAll(".screen").forEach(x => x.classList.remove("active"));
-    b.classList.add("active");
-    document.getElementById(b.dataset.screen).classList.add("active");
-  });
-});
-document.getElementById("goLive").addEventListener("click", goLive);
+/* ---------------- dashboard UI wiring ---------------- */
+
+/* Live | Studio mode switch */
+const modeLiveBtn = document.getElementById("modeLive");
+const modeStudioBtn = document.getElementById("modeStudio");
+function setMode(m) {
+  const liveMode = m === "live";
+  modeLiveBtn.classList.toggle("active", liveMode);
+  modeStudioBtn.classList.toggle("active", !liveMode);
+  document.getElementById("dash-live").classList.toggle("active", liveMode);
+  document.getElementById("dash-studio").classList.toggle("active", !liveMode);
+}
+modeLiveBtn.addEventListener("click", () => setMode("live"));
+modeStudioBtn.addEventListener("click", () => setMode("studio"));
+
+document.getElementById("goLive").addEventListener("click", () => { setMode("live"); goLive(); });
 
 const keysEl = document.getElementById("keys");
 NOTE_NAMES.forEach((n, i) => {
@@ -278,7 +294,7 @@ NOTE_NAMES.forEach((n, i) => {
   b.textContent = n;
   if (i === S.key) b.classList.add("sel");
   b.addEventListener("click", () => {
-    S.key = i; save(); pushSettings();
+    S.key = i; save(); pushSettings(); markCustom();
     keysEl.querySelectorAll("button").forEach((x, j) => x.classList.toggle("sel", j === i));
   });
   keysEl.appendChild(b);
@@ -290,7 +306,7 @@ SCALES.forEach(s => {
   b.textContent = s.label;
   if (s.id === S.scale) b.classList.add("sel");
   b.addEventListener("click", () => {
-    S.scale = s.id; save(); pushSettings();
+    S.scale = s.id; save(); pushSettings(); markCustom();
     scalesEl.querySelectorAll("button").forEach(x => x.classList.toggle("sel", x.textContent === s.label));
   });
   scalesEl.appendChild(b);
@@ -306,6 +322,12 @@ Object.entries(PRESETS).forEach(([id, p]) => {
   presetsEl.appendChild(b);
 });
 
+/** Any manual tweak drops the factory-preset highlight. */
+function markCustom() {
+  S.preset = "custom";
+  presetsEl.querySelectorAll("button").forEach(x => x.classList.remove("sel"));
+}
+
 function applyPreset(id) {
   const p = PRESETS[id];
   if (!p) return;
@@ -317,61 +339,121 @@ function applyPreset(id) {
   S.sat = JSON.parse(JSON.stringify(p.sat));
   S.warmth = p.warmth; S.clarity = p.clarity; S.reverb = p.reverb; S.delay = p.delay;
   S.doubler = p.doubler != null ? p.doubler : 25;
-  save(); pushSettings(); applyFx(); renderChain(); syncAtKnob();
+  S.duck = p.duck != null ? p.duck : 35;
+  save(); pushSettings(); applyFx(); syncDashboard();
   presetsEl.querySelectorAll("button").forEach(x => x.classList.toggle("sel", x.dataset.preset === id));
 }
 
-/* big Auto-Tune knob on the Live screen: one control, strength + speed together */
-const atKnob = document.getElementById("atKnob");
-function syncAtKnob() {
-  atKnob.value = S.tune.strength;
-  document.getElementById("atOut").textContent = S.tune.strength;
+/* --- generic control binders --- */
+function setToggleVisual(btn, on) {
+  btn.classList.toggle("on", on);
+  btn.setAttribute("aria-pressed", on);
 }
-atKnob.addEventListener("input", () => {
-  const v = parseInt(atKnob.value, 10);
-  S.tune.on = true; S.tune.strength = v; S.tune.retune = v;
-  S.preset = "custom";
-  presetsEl.querySelectorAll("button").forEach(x => x.classList.remove("sel"));
-  document.getElementById("atOut").textContent = v;
-  save(); pushSettings(); renderChain();
-});
-syncAtKnob();
-
-/* Voice FX transpose knob: creative ±12 semitone pitch twist */
-const transposeKnob = document.getElementById("transposeKnob");
-function syncTransposeKnob() {
-  transposeKnob.value = S.transpose || 0;
-  const v = S.transpose || 0;
-  document.getElementById("transposeOut").textContent = (v > 0 ? "+" : "") + v + "st";
+function bindToggle(id, key) {
+  const btn = document.getElementById(id);
+  setToggleVisual(btn, S[key].on);
+  btn.addEventListener("click", () => {
+    S[key].on = !S[key].on;
+    setToggleVisual(btn, S[key].on);
+    markCustom(); save(); pushSettings(); applyFx();
+  });
 }
-transposeKnob.addEventListener("input", () => {
-  S.transpose = parseInt(transposeKnob.value, 10);
-  S.preset = "custom";
-  presetsEl.querySelectorAll("button").forEach(x => x.classList.remove("sel"));
-  syncTransposeKnob();
-  save(); pushSettings();
-});
-syncTransposeKnob();
+function bindSlider(id, outId, get, set, fmt) {
+  const el = document.getElementById(id);
+  const out = document.getElementById(outId);
+  const show = () => { el.value = get(); out.textContent = fmt ? fmt(get()) : get(); };
+  show();
+  el.addEventListener("input", () => {
+    const v = parseInt(el.value, 10);
+    set(v);
+    // dragging a stage's slider re-enables that stage
+    if (id === "gateAmount") S.gate.on = true;
+    if (id === "deessAmount") S.deess.on = true;
+    if (id === "compAmount") S.comp.on = true;
+    if (id === "satAmount") S.sat.on = true;
+    markCustom(); save(); pushSettings(); applyFx(); syncToggles();
+    show();
+  });
+  return show;
+}
+function syncToggles() {
+  setToggleVisual(document.getElementById("gateToggle"), S.gate.on);
+  setToggleVisual(document.getElementById("deessToggle"), S.deess.on);
+  setToggleVisual(document.getElementById("compToggle"), S.comp.on);
+  setToggleVisual(document.getElementById("satToggle"), S.sat.on);
+}
 
-/* chain screen */
-const STAGES = [
-  { id:"gate", name:"Noise Gate", sub:"Cuts room noise between lines", sliders:[
-    { key:"amount", label:"Threshold" } ] },
-  { id:"tune", name:"Auto-Tune", sub:"Waves Tune-style pitch correction", sliders:[
-    { key:"strength", label:"Strength" }, { key:"retune", label:"Retune speed" } ] },
-  { id:"deess", name:"De-Ess", sub:"Tames harsh S sounds", sliders:[ { key:"amount", label:"Amount" } ] },
-  { id:"comp", name:"Compress", sub:"RVox-style vocal glue", sliders:[ { key:"amount", label:"Amount" } ] },
-  { id:"sat", name:"Saturation", sub:"Mantra-style grit and warmth", sliders:[ { key:"amount", label:"Drive" } ] },
-  { id:"doubler", name:"Doubler", sub:"Waves-style vocal thickening", sliders:[
-    { key:"doubler", label:"Amount", root:true } ] },
-  { id:"tone", name:"Tone", sub:"Warmth + clarity EQ", sliders:[
-    { key:"warmth", label:"Warmth", root:true }, { key:"clarity", label:"Clarity", root:true } ] },
-  { id:"space", name:"Space", sub:"Reverb + delay", sliders:[
-    { key:"reverb", label:"Reverb", root:true }, { key:"delay", label:"Delay", root:true } ] },
-];
+/* Tune panel */
+const showAt = bindSlider("atKnob", "atOut",
+  () => S.tune.strength,
+  (v) => { S.tune.on = true; S.tune.strength = v; S.tune.retune = v; });
+const showTranspose = bindSlider("transposeKnob", "transposeOut",
+  () => S.transpose || 0,
+  (v) => { S.transpose = v; },
+  (v) => (v > 0 ? "+" : "") + v + "st");
+
+/* Dynamics panel */
+bindToggle("gateToggle", "gate");
+bindToggle("deessToggle", "deess");
+bindToggle("compToggle", "comp");
+const showGate = bindSlider("gateAmount", "gateOut", () => S.gate.amount, (v) => { S.gate.amount = v; });
+const showDeess = bindSlider("deessAmount", "deessOut", () => S.deess.amount, (v) => { S.deess.amount = v; });
+const showComp = bindSlider("compAmount", "compOut", () => S.comp.amount, (v) => { S.comp.amount = v; });
+
+/* Tone panel */
+const showWarmth = bindSlider("warmthSlider", "warmthOut", () => S.warmth, (v) => { S.warmth = v; });
+const showClarity = bindSlider("claritySlider", "clarityOut", () => S.clarity, (v) => { S.clarity = v; });
+
+/* Space panel */
+const showReverb = bindSlider("reverbSlider", "reverbOut", () => S.reverb, (v) => { S.reverb = v; });
+const showDelay = bindSlider("delaySlider", "delayOut", () => S.delay, (v) => { S.delay = v; });
+const showDuck = bindSlider("duckSlider", "duckOut", () => S.duck, (v) => { S.duck = v; });
+const showDoubler = bindSlider("doublerSlider", "doublerOut", () => S.doubler || 0, (v) => { S.doubler = v; });
+
+/* Voice FX panel */
+bindToggle("satToggle", "sat");
+const showSat = bindSlider("satAmount", "satOut", () => S.sat.amount, (v) => { S.sat.amount = v; });
+
+/* tap tempo for the delay */
+let taps = [], tapReset = null;
+document.getElementById("tapBtn").addEventListener("click", () => {
+  const now = performance.now();
+  taps.push(now);
+  if (taps.length > 6) taps.shift();
+  const out = document.getElementById("tapOut");
+  if (taps.length >= 3) {
+    const iv = (taps[taps.length - 1] - taps[0]) / (taps.length - 1);
+    if (iv > 200 && iv < 2000) {
+      const bpm = Math.round(60000 / iv);
+      S.bpm = bpm;
+      S.delayTime = (60 / bpm) * 0.75; // dotted eighth
+      if (ctx && delayN) delayN.delayTime.value = S.delayTime;
+      save();
+      out.textContent = bpm + " BPM · " + Math.round(S.delayTime * 1000) + "ms";
+    }
+  } else {
+    out.textContent = "tap…";
+  }
+  clearTimeout(tapReset);
+  tapReset = setTimeout(() => { taps = []; }, 2500);
+});
+
+/** Push the whole state into every dashboard control. */
+function syncDashboard() {
+  showAt(); showTranspose();
+  showGate(); showDeess(); showComp();
+  showWarmth(); showClarity();
+  showReverb(); showDelay(); showDuck(); showDoubler();
+  showSat(); syncToggles();
+}
+
+/* --- custom presets --- */
+function getCustomPresets() {
+  try { return JSON.parse(localStorage.getItem("voxpro.custom.v1") || "{}"); }
+  catch (e) { return {}; }
+}
 function renderCustomChips() {
   const el = document.getElementById("customPresets");
-  if (!el) return;
   el.innerHTML = "";
   const all = getCustomPresets();
   const names = Object.keys(all);
@@ -405,105 +487,28 @@ function applyCustomPreset(name) {
   S.warmth = c.warmth; S.clarity = c.clarity; S.reverb = c.reverb; S.delay = c.delay;
   S.doubler = c.doubler || 0; S.transpose = c.transpose || 0;
   S.gate = c.gate || { on: true, amount: 30 };
+  S.duck = c.duck != null ? c.duck : 35;
   S.preset = "custom";
-  save(); pushSettings(); applyFx(); renderChain(); syncAtKnob(); syncTransposeKnob();
+  save(); pushSettings(); applyFx(); syncDashboard();
   presetsEl.querySelectorAll("button").forEach(x => x.classList.remove("sel"));
 }
-function getVal(stage, key, root) { return root ? S[key] : S[stage][key]; }
-function setVal(stage, key, root, v) { if (root) S[key] = v; else S[stage][key] = v; }
-
-function getCustomPresets() {
-  try { return JSON.parse(localStorage.getItem("voxpro.custom.v1") || "{}"); }
-  catch (e) { return {}; }
-}
-function renderChain() {
-  const host = document.getElementById("stages");
-  host.innerHTML = "";
-  // My Presets card
-  const pc = document.createElement("div");
-  pc.className = "stage on";
-  pc.innerHTML = `<div class="stage-head"><div class="stage-name">My Presets<small>Save the current chain, recall it anytime</small></div></div>
-    <div class="preset-save-row"><input id="presetName" placeholder="Preset name" maxlength="24"><button id="presetSaveBtn">Save</button></div>
-    <div id="customPresets" class="chips" style="margin-top:8px"></div>`;
-  host.appendChild(pc);
+document.getElementById("presetSaveBtn").addEventListener("click", () => {
+  const nameEl = document.getElementById("presetName");
+  const name = nameEl.value.trim();
+  if (!name) { nameEl.focus(); return; }
+  const all = getCustomPresets();
+  all[name] = JSON.parse(JSON.stringify({
+    tune: S.tune, deess: S.deess, comp: S.comp, sat: S.sat,
+    warmth: S.warmth, clarity: S.clarity, reverb: S.reverb, delay: S.delay,
+    doubler: S.doubler || 0, transpose: S.transpose || 0,
+    gate: S.gate, duck: S.duck,
+  }));
+  localStorage.setItem("voxpro.custom.v1", JSON.stringify(all));
+  nameEl.value = "";
   renderCustomChips();
-  document.getElementById("presetSaveBtn").addEventListener("click", () => {
-    const nameEl = document.getElementById("presetName");
-    const name = nameEl.value.trim();
-    if (!name) { nameEl.focus(); return; }
-    const all = getCustomPresets();
-    all[name] = JSON.parse(JSON.stringify({
-      tune: S.tune, deess: S.deess, comp: S.comp, sat: S.sat,
-      warmth: S.warmth, clarity: S.clarity, reverb: S.reverb, delay: S.delay,
-      doubler: S.doubler || 0, transpose: S.transpose || 0,
-      gate: S.gate,
-    }));
-    localStorage.setItem("voxpro.custom.v1", JSON.stringify(all));
-    nameEl.value = "";
-    renderCustomChips();
-  });
-  STAGES.forEach(st => {
-    const hasToggle = !["tone","space"].includes(st.id);
-    const on = hasToggle ? S[st.id].on : true;
-    const div = document.createElement("div");
-    div.className = "stage" + (on ? " on" : "");
-    let html = `<div class="stage-head"><div class="stage-name">${st.name}<small>${st.sub}</small></div>`;
-    if (hasToggle) html += `<button class="toggle${on ? " on" : ""}" data-stage="${st.id}" aria-pressed="${on}"><span></span></button>`;
-    html += `</div>`;
-    st.sliders.forEach(sl => {
-      const v = getVal(st.id, sl.key, sl.root);
-      html += `<div class="slider-row"><label>${sl.label}</label>` +
-        `<input type="range" min="0" max="100" value="${v}" data-stage="${st.id}" data-key="${sl.key}" data-root="${sl.root ? 1 : 0}">` +
-        `<output>${v}</output></div>`;
-    });
-    if (st.id === "space") {
-      const bpmTxt = S.bpm ? S.bpm + " BPM · " + Math.round(S.delayTime * 1000) + "ms" : "tap the beat";
-      html += `<div class="slider-row"><label>Tempo</label><button id="tapBtn" class="mini-btn">TAP</button><output id="tapOut">${bpmTxt}</output></div>`;
-    }
-    div.innerHTML = html;
-    host.appendChild(div);
-  });
-  host.querySelectorAll(".toggle").forEach(t => {
-    t.addEventListener("click", () => {
-      const st = t.dataset.stage;
-      S[st].on = !S[st].on; save(); pushSettings(); applyFx(); renderChain();
-    });
-  });
-  host.querySelectorAll('input[type=range]').forEach(r => {
-    r.addEventListener("input", () => {
-      const v = parseInt(r.value, 10);
-      setVal(r.dataset.stage, r.dataset.key, r.dataset.root === "1", v);
-      r.nextElementSibling.textContent = v;
-      S.preset = "custom";
-      presetsEl.querySelectorAll("button").forEach(x => x.classList.remove("sel"));
-      save(); pushSettings(); applyFx();
-    });
-  });
-  const tapBtn = host.querySelector("#tapBtn");
-  if (tapBtn) {
-    let taps = [], tapReset = null;
-    tapBtn.addEventListener("click", () => {
-      const now = performance.now();
-      taps.push(now);
-      if (taps.length > 6) taps.shift();
-      const out = host.querySelector("#tapOut");
-      if (taps.length >= 3) {
-        const iv = (taps[taps.length - 1] - taps[0]) / (taps.length - 1);
-        if (iv > 200 && iv < 2000) {
-          const bpm = Math.round(60000 / iv);
-          S.bpm = bpm;
-          S.delayTime = (60 / bpm) * 0.75; // dotted eighth
-          if (ctx && delayN) delayN.delayTime.value = S.delayTime;
-          save();
-          if (out) out.textContent = bpm + " BPM · " + Math.round(S.delayTime * 1000) + "ms";
-        }
-      } else if (out) out.textContent = "tap…";
-      clearTimeout(tapReset);
-      tapReset = setTimeout(() => { taps = []; }, 2500);
-    });
-  }
-}
-renderChain();
+});
+renderCustomChips();
+
 
 document.getElementById("monitorToggle").addEventListener("click", function() {
   S.monitor = !S.monitor; save();
@@ -562,7 +567,7 @@ function presetLabel() {
 function updateStudioSettingsLine() {
   document.getElementById("studioSettingsLine").textContent =
     "Tuning to " + NOTE_NAMES[S.key] + " " + scaleLabel() + " · " + presetLabel() +
-    " — change key, scale or preset on the Live tab.";
+    " — change key, scale or preset on the dashboard.";
 }
 function studioSettings() {
   return {
@@ -647,8 +652,44 @@ async function renderOfflineFx(tunedMono, sampleRate) {
   af.connect(dblSend);
   af.connect(rSend); rSend.connect(verb); verb.connect(mst);
   af.connect(dSend); dSend.connect(dly); dly.connect(fb); fb.connect(dly); dly.connect(mst);
+  // Studio ducking: automate the space sends against the vocal envelope
+  const duckAmt = (S.duck || 0) / 100;
+  const rBase = (S.reverb / 100) * 0.9, dBase = (S.delay / 100) * 0.7;
+  rSend.gain.value = rBase; dSend.gain.value = dBase;
+  if (duckAmt > 0.01) {
+    const curve = makeDuckCurve(tunedMono, sampleRate, duckAmt);
+    const dur = len / sampleRate;
+    const rc = new Float32Array(curve.length), dc = new Float32Array(curve.length);
+    for (let i = 0; i < curve.length; i++) { rc[i] = rBase * curve[i]; dc[i] = dBase * curve[i]; }
+    rSend.gain.setValueCurveAtTime(rc, 0, dur);
+    dSend.gain.setValueCurveAtTime(dc, 0, dur);
+  }
   src.start();
   return off.startRendering();
+}
+
+/** Vocal envelope -> ducking curve: 1 when silent, (1-duck) at full voice. */
+function makeDuckCurve(mono, sampleRate, duck) {
+  const win = Math.max(1, Math.floor(sampleRate * 0.05));
+  const n = Math.ceil(mono.length / win);
+  const curve = new Float32Array(n);
+  let peak = 0;
+  for (let i = 0; i < n; i++) {
+    let p = 0;
+    const start = i * win, end = Math.min(start + win, mono.length);
+    for (let j = start; j < end; j += 4) {
+      const a = Math.abs(mono[j]);
+      if (a > p) p = a;
+    }
+    if (p > peak) peak = p;
+    curve[i] = p;
+  }
+  if (peak > 1e-6) {
+    for (let i = 0; i < n; i++) curve[i] = 1 - duck * Math.min(1, curve[i] / peak);
+  } else {
+    curve.fill(1);
+  }
+  return curve;
 }
 
 document.getElementById("studioProcess").addEventListener("click", async () => {
