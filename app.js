@@ -17,7 +17,7 @@ const PRESETS = {
 const DEFAULT_STATE = {
   key: 0, scale: "major", preset: "pop", monitor: true,
   volume: 80, feedbackGuard: true, tipDismissed: false,
-  inGain: 0, delayTime: 0.27, bpm: null,
+  inGain: 0, delayTime: 0.27, bpm: null, transpose: 0,
   tune: { on:true, strength:85, retune:60 },
   deess: { on:true, amount:45 },
   comp: { on:true, amount:55 },
@@ -104,15 +104,16 @@ async function goLive() {
     // Doubler: two short modulated delays for Waves-style vocal thickening
     dblSend = ctx.createGain();
     [
-      { dt: 0.020, lfo: 0.45, depth: 0.0022 },
-      { dt: 0.031, lfo: 0.62, depth: 0.0018 },
+      { dt: 0.020, lfo: 0.45, depth: 0.0022, pan: -0.8 },
+      { dt: 0.031, lfo: 0.62, depth: 0.0018, pan: 0.8 },
     ].forEach(v => {
       const d = ctx.createDelay(0.1); d.delayTime.value = v.dt;
       const lfo = ctx.createOscillator(); lfo.frequency.value = v.lfo;
       const lg = ctx.createGain(); lg.gain.value = v.depth;
       lfo.connect(lg); lg.connect(d.delayTime); lfo.start();
       const g = ctx.createGain(); g.gain.value = 0.5;
-      dblSend.connect(d); d.connect(g); g.connect(master);
+      const p = ctx.createStereoPanner(); p.pan.value = v.pan;
+      dblSend.connect(d); d.connect(g); g.connect(p); p.connect(master);
     });
     airF.connect(dblSend);
 
@@ -163,6 +164,7 @@ function pushSettings() {
   vox.port.postMessage({ type: "settings", settings: {
     tune: S.tune.on, strength: S.tune.strength / 100, retune: S.tune.retune / 100,
     maxShift: 3, key: S.key, scale: S.scale, deEss: S.deess.on ? S.deess.amount / 100 : 0,
+    transpose: S.transpose || 0,
   }});
 }
 
@@ -333,6 +335,22 @@ atKnob.addEventListener("input", () => {
 });
 syncAtKnob();
 
+/* Voice FX transpose knob: creative ±12 semitone pitch twist */
+const transposeKnob = document.getElementById("transposeKnob");
+function syncTransposeKnob() {
+  transposeKnob.value = S.transpose || 0;
+  const v = S.transpose || 0;
+  document.getElementById("transposeOut").textContent = (v > 0 ? "+" : "") + v + "st";
+}
+transposeKnob.addEventListener("input", () => {
+  S.transpose = parseInt(transposeKnob.value, 10);
+  S.preset = "custom";
+  presetsEl.querySelectorAll("button").forEach(x => x.classList.remove("sel"));
+  syncTransposeKnob();
+  save(); pushSettings();
+});
+syncTransposeKnob();
+
 /* chain screen */
 const STAGES = [
   { id:"tune", name:"Auto-Tune", sub:"Waves Tune-style pitch correction", sliders:[
@@ -381,9 +399,9 @@ function applyCustomPreset(name) {
   const c = JSON.parse(JSON.stringify(s));
   S.tune = c.tune; S.deess = c.deess; S.comp = c.comp; S.sat = c.sat || { on: false, amount: 0 };
   S.warmth = c.warmth; S.clarity = c.clarity; S.reverb = c.reverb; S.delay = c.delay;
-  S.doubler = c.doubler || 0;
+  S.doubler = c.doubler || 0; S.transpose = c.transpose || 0;
   S.preset = "custom";
-  save(); pushSettings(); applyFx(); renderChain(); syncAtKnob();
+  save(); pushSettings(); applyFx(); renderChain(); syncAtKnob(); syncTransposeKnob();
   presetsEl.querySelectorAll("button").forEach(x => x.classList.remove("sel"));
 }
 function getVal(stage, key, root) { return root ? S[key] : S[stage][key]; }
@@ -412,7 +430,7 @@ function renderChain() {
     all[name] = JSON.parse(JSON.stringify({
       tune: S.tune, deess: S.deess, comp: S.comp, sat: S.sat,
       warmth: S.warmth, clarity: S.clarity, reverb: S.reverb, delay: S.delay,
-      doubler: S.doubler || 0,
+      doubler: S.doubler || 0, transpose: S.transpose || 0,
     }));
     localStorage.setItem("voxpro.custom.v1", JSON.stringify(all));
     nameEl.value = "";
@@ -543,7 +561,7 @@ function updateStudioSettingsLine() {
 function studioSettings() {
   return {
     tune: S.tune.on, strength: S.tune.strength / 100, retune: S.tune.retune / 100,
-    maxShift: 3, key: S.key, scale: S.scale,
+    maxShift: 3, key: S.key, scale: S.scale, transpose: S.transpose || 0,
     clarity: S.clarity / 100, warmth: S.warmth / 100,
     deEss: S.deess.on ? S.deess.amount / 100 : 0,
     compression: S.comp.on ? S.comp.amount / 100 : 0,
@@ -607,15 +625,16 @@ async function renderOfflineFx(tunedMono, sampleRate) {
   // Doubler voices (same as live)
   const dblSend = off.createGain(); dblSend.gain.value = ((S.doubler || 0) / 100) * 0.8;
   [
-    { dt: 0.020, lfo: 0.45, depth: 0.0022 },
-    { dt: 0.031, lfo: 0.62, depth: 0.0018 },
+    { dt: 0.020, lfo: 0.45, depth: 0.0022, pan: -0.8 },
+    { dt: 0.031, lfo: 0.62, depth: 0.0018, pan: 0.8 },
   ].forEach(v => {
     const d = off.createDelay(0.1); d.delayTime.value = v.dt;
     const lfo = off.createOscillator(); lfo.frequency.value = v.lfo;
     const lg = off.createGain(); lg.gain.value = v.depth;
     lfo.connect(lg); lg.connect(d.delayTime); lfo.start();
     const g = off.createGain(); g.gain.value = 0.5;
-    dblSend.connect(d); d.connect(g); g.connect(mst);
+    const p = off.createStereoPanner(); p.pan.value = v.pan;
+    dblSend.connect(d); d.connect(g); g.connect(p); p.connect(mst);
   });
   src.connect(comp); comp.connect(sh); sh.connect(wf); wf.connect(pf); pf.connect(af); af.connect(mst); mst.connect(off.destination);
   af.connect(dblSend);
