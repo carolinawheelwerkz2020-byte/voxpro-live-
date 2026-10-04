@@ -312,10 +312,12 @@ setInterval(() => {
     document.getElementById("noteName").textContent = "—";
     const c = document.getElementById("cents");
     c.textContent = "+0¢"; c.className = "";
+    highlightPiano(null);
     return;
   }
   const midi = hzToMidi(meterFreq);
   const near = Math.round(midi);
+  highlightPiano(near);
   const name = NOTE_NAMES[((near % 12) + 12) % 12] + (Math.floor(near / 12) - 1);
   const cents = Math.round((midi - near) * 100);
   document.getElementById("noteName").textContent = name;
@@ -340,6 +342,42 @@ modeLiveBtn.addEventListener("click", () => setMode("live"));
 modeStudioBtn.addEventListener("click", () => setMode("studio"));
 
 document.getElementById("goLive").addEventListener("click", () => { setMode("live"); goLive(); });
+
+/* piano pitch display: 2 octaves, lights up the detected note */
+const pianoStrip = document.getElementById("pianoStrip");
+let lastPianoMidi = -1;
+if (pianoStrip) {
+  const WHITE_SEMIS = [0, 2, 4, 5, 7, 9, 11];
+  const BLACK_AFTER = [0, 1, 3, 4, 5]; // white-index -> black key after it
+  const BLACK_SEMIS = [1, 3, 6, 8, 10];
+  for (let oct = 0; oct < 2; oct++) {
+    const base = 48 + oct * 12; // C3, C4
+    WHITE_SEMIS.forEach((semi) => {
+      const k = document.createElement("div");
+      k.className = "pkey white";
+      k.dataset.midi = base + semi;
+      pianoStrip.appendChild(k);
+    });
+    BLACK_AFTER.forEach((w, i) => {
+      const b = document.createElement("div");
+      b.className = "pkey black";
+      b.dataset.midi = base + BLACK_SEMIS[i];
+      b.style.left = ((oct * 7 + w + 1) * (100 / 14)) + "%";
+      pianoStrip.appendChild(b);
+    });
+  }
+}
+function highlightPiano(midiOrNull) {
+  if (!pianoStrip) return;
+  const m = midiOrNull == null ? -1 : Math.round(midiOrNull);
+  if (m === lastPianoMidi) return;
+  lastPianoMidi = m;
+  pianoStrip.querySelectorAll(".pkey.active").forEach(k => k.classList.remove("active"));
+  if (m >= 0) {
+    const key = pianoStrip.querySelector('[data-midi="' + m + '"]');
+    if (key) key.classList.add("active");
+  }
+}
 
 const keysEl = document.getElementById("keys");
 NOTE_NAMES.forEach((n, i) => {
