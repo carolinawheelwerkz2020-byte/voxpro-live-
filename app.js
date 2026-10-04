@@ -41,7 +41,8 @@ function save() { try { localStorage.setItem("voxpro.v1", JSON.stringify(S)); } 
 let ctx = null, vox = null, stream = null;
 let comp, warmthF, presenceF, airF, master, reverbSend, convolver, delaySend, delayN, fbGain;
 let micHP, limiter, outGain, inTrim, shaper, dblSend;
-let live = false, meterFreq = null, meterLevel = 0;
+let live = false, meterFreq = null, meterLevel = 0, meterGate = 1;
+let outAnalyser = null, outAnalyserBuf = null;
 let duckEnv = 0, revBase = 0, dlyBase = 0;
 let freezeHeld = false;
 
@@ -85,7 +86,7 @@ async function goLive() {
       numberOfInputs: 1, numberOfOutputs: 1, outputChannelCount: [2],
     });
     vox.port.onmessage = (e) => {
-      if (e.data && e.data.type === "meter") { meterFreq = e.data.freq; meterLevel = e.data.level; }
+      if (e.data && e.data.type === "meter") { meterFreq = e.data.freq; meterLevel = e.data.level; meterGate = e.data.gate != null ? e.data.gate : 1; }
     };
 
     comp = ctx.createDynamicsCompressor();
@@ -124,7 +125,10 @@ async function goLive() {
     src.connect(micHP); micHP.connect(inTrim); inTrim.connect(vox);
     vox.connect(comp); comp.connect(shaper); shaper.connect(warmthF); warmthF.connect(presenceF);
     presenceF.connect(airF); airF.connect(master);
-    master.connect(limiter); limiter.connect(outGain); outGain.connect(ctx.destination);
+    master.connect(limiter); limiter.connect(outGain);
+    outAnalyser = ctx.createAnalyser(); outAnalyser.fftSize = 256;
+    outAnalyserBuf = new Uint8Array(outAnalyser.fftSize);
+    outGain.connect(outAnalyser); outAnalyser.connect(ctx.destination);
     airF.connect(reverbSend); reverbSend.connect(convolver); convolver.connect(master);
     airF.connect(delaySend); delaySend.connect(delayN);
     delayN.connect(fbGain); fbGain.connect(delayN); delayN.connect(master);
@@ -150,7 +154,7 @@ function stopLive() {
   try { if (vox) vox.disconnect(); } catch (e) {}
   try { if (stream) stream.getTracks().forEach(t => t.stop()); } catch (e) {}
   try { if (ctx) ctx.close(); } catch (e) {}
-  vox = null; ctx = null; stream = null; meterFreq = null;
+  vox = null; ctx = null; stream = null; meterFreq = null; outAnalyser = null;
   freezeHeld = false;
   const fz = document.getElementById("freezeBtn");
   if (fz) { fz.classList.remove("held"); fz.textContent = "❄ Hold to Freeze"; }
@@ -260,7 +264,37 @@ function drawMeter() {
 }
 
 let lastNoteDom = 0;
+function updateScreens() {
+  const gs = document.getElementById("gateScreen");
+  if (gs) gs.textContent = !live ? "STANDBY" : (!S.gate.on ? "BYPASSED" : (meterGate < 0.5 ? "SHUT" : "OPEN"));
+  const df = document.getElementById("dynMeterFill");
+  if (df) df.style.width = (Math.min(1, meterLevel) * 100).toFixed(1) + "%";
+  const ts = document.getElementById("toneScreen");
+  if (ts) ts.textContent = "WARM " + S.warmth + " · AIR " + S.clarity;
+  const ss = document.getElementById("spaceScreen");
+  if (ss) ss.textContent = "REV " + S.reverb + " · DLY " + S.delay;
+  const fs = document.getElementById("fxScreen");
+  if (fs) {
+    const t = S.transpose || 0;
+    fs.textContent = "TRANS " + (t >= 0 ? "+" : "") + t + " · HARM " + (S.harmony.on ? S.harmony.amount : "OFF");
+  }
+  const of = document.getElementById("outMeterFill");
+  if (of) {
+    let ol = 0;
+    if (live && outAnalyser && outAnalyserBuf) {
+      outAnalyser.getByteTimeDomainData(outAnalyserBuf);
+      let sum = 0;
+      for (let i = 0; i < outAnalyserBuf.length; i++) {
+        const v = (outAnalyserBuf[i] - 128) / 128;
+        sum += v * v;
+      }
+      ol = Math.min(1, Math.sqrt(sum / outAnalyserBuf.length) * 2.4);
+    }
+    of.style.width = (ol * 100).toFixed(1) + "%";
+  }
+}
 setInterval(() => {
+  updateScreens();
   if (!live || !meterFreq) {
     document.getElementById("noteName").textContent = "—";
     const c = document.getElementById("cents");
@@ -348,6 +382,8 @@ function applyPreset(id) {
   S.duck = p.duck != null ? p.duck : 35;
   S.harmony = JSON.parse(JSON.stringify(p.harmony || { on: true, amount: 30 }));
   save(); pushSettings(); applyFx(); syncDashboard();
+  const ps = document.getElementById("presetScreen");
+  if (ps) ps.textContent = p.label.toUpperCase();
   presetsEl.querySelectorAll("button").forEach(x => x.classList.toggle("sel", x.dataset.preset === id));
 }
 
@@ -506,6 +542,8 @@ function renderCustomChips() {
   });
 }
 function applyCustomPreset(name) {
+  const ps0 = document.getElementById("presetScreen");
+  if (ps0) ps0.textContent = name.toUpperCase();
   const s = getCustomPresets()[name];
   if (!s) return;
   const c = JSON.parse(JSON.stringify(s));

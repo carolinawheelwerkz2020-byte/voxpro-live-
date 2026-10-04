@@ -28,17 +28,17 @@
   </header>
 
   <main>
-    <!-- LIVE DASHBOARD -->
+    <!-- LIVE RACK -->
     <section id="dash-live" class="dash active">
-      <div class="meter-card">
-        <canvas id="meter" width="640" height="300"></canvas>
-        <div class="note-readout"><span id="noteName">—</span><span id="cents">+0¢</span></div>
-      </div>
-      <div id="fbTip" class="fb-tip" hidden>🔊 Hearing squealing? That's feedback — plug in earbuds, or turn the output volume down in the Output panel. <button id="fbTipX" aria-label="Dismiss">✕</button></div>
+      <div id="fbTip" class="fb-tip" hidden>🔊 Hearing squealing? That's feedback — plug in earbuds, or turn the output volume down in the Output module. <button id="fbTipX" aria-label="Dismiss">✕</button></div>
 
-      <div class="panels">
-        <section class="panel">
-          <div class="panel-title">Tune <span>Auto-Tune · Key · Scale</span></div>
+      <div class="rack">
+        <section class="module" style="--mod:#fb923c">
+          <div class="mod-head"><span class="mod-name">Tune</span><span class="mod-sub">Auto-Tune · Key · Scale</span></div>
+          <div class="screen">
+            <canvas id="meter" width="640" height="300"></canvas>
+            <div class="note-readout"><span id="noteName">—</span><span id="cents">+0¢</span></div>
+          </div>
           <div class="slider-row"><label>Auto-Tune</label><input type="range" id="atKnob" min="0" max="100" value="85"><output id="atOut">85</output></div>
           <p class="hint" style="margin:2px 0 8px">The hard-tune robot effect lives at 100.</p>
           <div class="mini-label">Key</div>
@@ -47,12 +47,16 @@
           <div id="scales" class="chips"></div>
         </section>
 
-        <section class="panel">
-          <div class="panel-title">Dynamics <span>Gate · De-Ess · Glue</span></div>
-          <div class="ctl">
-            <div class="ctl-head"><span>Noise Gate</span><button id="gateToggle" class="toggle on" aria-pressed="true"><span></span></button></div>
-            <div class="slider-row"><label>Threshold</label><input type="range" id="gateAmount" min="0" max="100" value="30"><output id="gateOut">30</output></div>
-          </div>
+        <section class="module" style="--mod:#f87171">
+          <div class="mod-head"><span class="mod-name">Gate</span><button id="gateToggle" class="toggle on" aria-pressed="true"><span></span></button></div>
+          <div class="screen screen-text"><span id="gateScreen">STANDBY</span></div>
+          <div class="slider-row"><label>Threshold</label><input type="range" id="gateAmount" min="0" max="100" value="30"><output id="gateOut">30</output></div>
+          <p class="hint" style="margin:2px 0 8px">Shuts the mic between phrases so room noise never hits the tuner.</p>
+        </section>
+
+        <section class="module" style="--mod:#4ade80">
+          <div class="mod-head"><span class="mod-name">Dynamics</span><span class="mod-sub">De-Ess · Glue</span></div>
+          <div class="screen"><div class="meter"><div id="dynMeterFill" class="meter-fill"></div></div><div class="screen-tag">INPUT</div></div>
           <div class="ctl">
             <div class="ctl-head"><span>De-Ess</span><button id="deessToggle" class="toggle on" aria-pressed="true"><span></span></button></div>
             <div class="slider-row"><label>Amount</label><input type="range" id="deessAmount" min="0" max="100" value="45"><output id="deessOut">45</output></div>
@@ -63,14 +67,16 @@
           </div>
         </section>
 
-        <section class="panel">
-          <div class="panel-title">Tone <span>Warmth · Clarity</span></div>
+        <section class="module" style="--mod:#fbbf24">
+          <div class="mod-head"><span class="mod-name">Tone</span><span class="mod-sub">Warmth · Clarity</span></div>
+          <div class="screen screen-text"><span id="toneScreen">WARM 40 · AIR 55</span></div>
           <div class="slider-row"><label>Warmth</label><input type="range" id="warmthSlider" min="0" max="100" value="40"><output id="warmthOut">40</output></div>
           <div class="slider-row"><label>Clarity</label><input type="range" id="claritySlider" min="0" max="100" value="55"><output id="clarityOut">55</output></div>
         </section>
 
-        <section class="panel">
-          <div class="panel-title">Space <span>Reverb · Delay · Doubler</span></div>
+        <section class="module" style="--mod:#60a5fa">
+          <div class="mod-head"><span class="mod-name">Space</span><span class="mod-sub">Reverb · Delay · Doubler</span></div>
+          <div class="screen screen-text"><span id="spaceScreen">REV 30 · DLY 12</span></div>
           <div class="slider-row"><label>Reverb</label><input type="range" id="reverbSlider" min="0" max="100" value="30"><output id="reverbOut">30</output></div>
           <div class="slider-row"><label>Delay</label><input type="range" id="delaySlider" min="0" max="100" value="12"><output id="delayOut">12</output></div>
           <div class="slider-row"><label>Ducking</label><input type="range" id="duckSlider" min="0" max="100" value="35"><output id="duckOut">35</output></div>
@@ -79,8 +85,9 @@
           <div class="slider-row"><label>Tempo</label><button id="tapBtn" class="mini-btn">TAP</button><output id="tapOut">tap the beat</output></div>
         </section>
 
-        <section class="panel">
-          <div class="panel-title">Voice FX <span>Creative chaos</span></div>
+        <section class="module" style="--mod:#c084fc">
+          <div class="mod-head"><span class="mod-name">Voice FX</span><span class="mod-sub">Creative chaos</span></div>
+          <div class="screen screen-text"><span id="fxScreen">TRANS +0 · HARM 30</span></div>
           <div class="slider-row"><label>Transpose</label><input type="range" id="transposeKnob" min="-12" max="12" step="1" value="0"><output id="transposeOut">0st</output></div>
           <p class="hint" style="margin:2px 0 8px">Pitch twist, Murda-style. −12 is monster, +12 is chipmunk.</p>
           <button id="freezeBtn" class="freeze-btn">❄ Hold to Freeze</button>
@@ -96,14 +103,16 @@
           </div>
         </section>
 
-        <section class="panel">
-          <div class="panel-title">My Presets <span>Save the current chain</span></div>
+        <section class="module" style="--mod:#94a3b8">
+          <div class="mod-head"><span class="mod-name">Presets</span><span class="mod-sub">Save the current chain</span></div>
+          <div class="screen screen-text"><span id="presetScreen">MODERN POP</span></div>
           <div class="preset-save-row"><input id="presetName" placeholder="Preset name" maxlength="24"><button id="presetSaveBtn">Save</button></div>
           <div id="customPresets" class="chips" style="margin-top:8px"></div>
         </section>
 
-        <section class="panel">
-          <div class="panel-title">Output <span>Monitor · Levels</span></div>
+        <section class="module" style="--mod:#e2e8f0">
+          <div class="mod-head"><span class="mod-name">Output</span><span class="mod-sub">Monitor · Levels</span></div>
+          <div class="screen"><div class="meter"><div id="outMeterFill" class="meter-fill"></div></div><div class="screen-tag">OUT</div></div>
           <div class="card-row">
             <div><div class="card-title">Hear yourself</div><div class="card-sub">Live monitor through this phone</div></div>
             <button id="monitorToggle" class="toggle on" aria-pressed="true"><span></span></button>
