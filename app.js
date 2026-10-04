@@ -8,11 +8,21 @@ const SCALES = [
   { id:"blues", label:"Blues" }, { id:"chromatic", label:"Chromatic" },
 ];
 const PRESETS = {
-  natural:   { label:"Natural",    tune:{on:true, strength:45, retune:30}, gate:{on:true, amount:30}, deess:{on:true, amount:30}, comp:{on:true, amount:30}, sat:{on:true, amount:25}, warmth:50, clarity:40, reverb:30, delay:8, doubler:20, duck:25, harmony:{on:true, amount:20} },
-  pop:       { label:"Modern Pop", tune:{on:true, strength:85, retune:60}, gate:{on:true, amount:30}, deess:{on:true, amount:45}, comp:{on:true, amount:55}, sat:{on:true, amount:35}, warmth:40, clarity:55, reverb:30, delay:12, doubler:25, duck:35, harmony:{on:true, amount:30} },
-  hardtune:  { label:"Hard Tune",  tune:{on:true, strength:100, retune:100}, gate:{on:true, amount:30}, deess:{on:true, amount:50}, comp:{on:true, amount:60}, sat:{on:true, amount:45}, warmth:35, clarity:60, reverb:22, delay:14, doubler:15, duck:30, harmony:{on:true, amount:15} },
-  ballad:    { label:"Warm Ballad",tune:{on:true, strength:60, retune:35}, gate:{on:true, amount:30}, deess:{on:true, amount:40}, comp:{on:true, amount:35}, sat:{on:true, amount:30}, warmth:70, clarity:35, reverb:45, delay:18, doubler:30, duck:40, harmony:{on:true, amount:30} },
-  radio:     { label:"Radio Ready",tune:{on:true, strength:90, retune:75}, gate:{on:true, amount:30}, deess:{on:true, amount:55}, comp:{on:true, amount:75}, sat:{on:true, amount:40}, warmth:45, clarity:65, reverb:20, delay:10, doubler:30, duck:30, harmony:{on:true, amount:30} },
+  natural:   { label:"Natural",    tune:{on:true, strength:45, retune:30}, gate:{on:true, amount:30}, deess:{on:true, amount:30}, comp:{on:true, amount:30}, sat:{on:true, amount:25}, warmth:50, clarity:40, reverb:30, delay:8, doubler:20, duck:25, harmony:{on:true, amount:20}, transpose:0 },
+  pop:       { label:"Modern Pop", tune:{on:true, strength:85, retune:60}, gate:{on:true, amount:30}, deess:{on:true, amount:45}, comp:{on:true, amount:55}, sat:{on:true, amount:35}, warmth:40, clarity:55, reverb:30, delay:12, doubler:25, duck:35, harmony:{on:true, amount:30}, transpose:0 },
+  hardtune:  { label:"Hard Tune",  tune:{on:true, strength:100, retune:100}, gate:{on:true, amount:30}, deess:{on:true, amount:50}, comp:{on:true, amount:60}, sat:{on:true, amount:45}, warmth:35, clarity:60, reverb:22, delay:14, doubler:15, duck:30, harmony:{on:true, amount:15}, transpose:0 },
+  ballad:    { label:"Warm Ballad",tune:{on:true, strength:60, retune:35}, gate:{on:true, amount:30}, deess:{on:true, amount:40}, comp:{on:true, amount:35}, sat:{on:true, amount:30}, warmth:70, clarity:35, reverb:45, delay:18, doubler:30, duck:40, harmony:{on:true, amount:30}, transpose:0 },
+  radio:     { label:"Radio Ready",tune:{on:true, strength:90, retune:75}, gate:{on:true, amount:30}, deess:{on:true, amount:55}, comp:{on:true, amount:75}, sat:{on:true, amount:40}, warmth:45, clarity:65, reverb:20, delay:10, doubler:30, duck:30, harmony:{on:true, amount:30}, transpose:0 },
+};
+/* Style pack — one-tap artist-vibe chains. Vibe names only, no artist endorsements implied. */
+const STYLES = {
+  toliver:  { label:"Toliver Wave", tune:{on:true, strength:100, retune:90}, gate:{on:true, amount:30}, deess:{on:true, amount:45}, comp:{on:true, amount:55}, sat:{on:true, amount:35}, warmth:45, clarity:65, reverb:55, delay:22, doubler:35, duck:40, harmony:{on:true, amount:35}, transpose:0 },
+  croon:    { label:"6AM Croon",    tune:{on:true, strength:70, retune:55}, gate:{on:true, amount:30}, deess:{on:true, amount:40}, comp:{on:true, amount:50}, sat:{on:true, amount:30}, warmth:60, clarity:45, reverb:40, delay:18, doubler:30, duck:35, harmony:{on:true, amount:30}, transpose:0 },
+  rage:     { label:"Rage Mode",    tune:{on:true, strength:100, retune:100}, gate:{on:true, amount:30}, deess:{on:true, amount:50}, comp:{on:true, amount:60}, sat:{on:true, amount:50}, warmth:35, clarity:70, reverb:35, delay:28, doubler:25, duck:35, harmony:{on:true, amount:20}, transpose:0 },
+  soul:     { label:"Trap Soul",    tune:{on:true, strength:55, retune:40}, gate:{on:true, amount:30}, deess:{on:true, amount:40}, comp:{on:true, amount:45}, sat:{on:true, amount:30}, warmth:70, clarity:40, reverb:45, delay:15, doubler:25, duck:40, harmony:{on:true, amount:35}, transpose:0 },
+  monster:  { label:"Dungeon Monster", tune:{on:true, strength:90, retune:80}, gate:{on:true, amount:30}, deess:{on:true, amount:45}, comp:{on:true, amount:60}, sat:{on:true, amount:55}, warmth:50, clarity:40, reverb:40, delay:20, doubler:20, duck:35, harmony:{on:true, amount:15}, transpose:-7 },
+  chipmunk: { label:"Chipmunk Soul", tune:{on:true, strength:85, retune:70}, gate:{on:true, amount:30}, deess:{on:true, amount:45}, comp:{on:true, amount:50}, sat:{on:true, amount:35}, warmth:45, clarity:60, reverb:35, delay:20, doubler:25, duck:35, harmony:{on:true, amount:25}, transpose:7 },
+  anthem:   { label:"Stadium Anthem", tune:{on:true, strength:80, retune:65}, gate:{on:true, amount:30}, deess:{on:true, amount:45}, comp:{on:true, amount:65}, sat:{on:true, amount:40}, warmth:50, clarity:60, reverb:60, delay:25, doubler:40, duck:45, harmony:{on:true, amount:40}, transpose:0 },
 };
 const DEFAULT_STATE = {
   key: 0, scale: "major", preset: "pop", monitor: true,
@@ -369,7 +379,7 @@ function markCustom() {
 }
 
 function applyPreset(id) {
-  const p = PRESETS[id];
+  const p = PRESETS[id] || STYLES[id];
   if (!p) return;
   S.preset = id;
   S.tune = JSON.parse(JSON.stringify(p.tune));
@@ -381,11 +391,26 @@ function applyPreset(id) {
   S.doubler = p.doubler != null ? p.doubler : 25;
   S.duck = p.duck != null ? p.duck : 35;
   S.harmony = JSON.parse(JSON.stringify(p.harmony || { on: true, amount: 30 }));
+  S.transpose = p.transpose || 0;
   save(); pushSettings(); applyFx(); syncDashboard();
   const ps = document.getElementById("presetScreen");
   if (ps) ps.textContent = p.label.toUpperCase();
   presetsEl.querySelectorAll("button").forEach(x => x.classList.toggle("sel", x.dataset.preset === id));
 }
+
+/* style pack chips */
+const stylesEl = document.getElementById("stylePresets");
+Object.entries(STYLES).forEach(([id, p]) => {
+  const b = document.createElement("button");
+  b.textContent = p.label;
+  b.addEventListener("click", () => {
+    applyPreset(id);
+    stylesEl.querySelectorAll("button").forEach(x => x.classList.remove("sel"));
+    presetsEl.querySelectorAll("button").forEach(x => x.classList.remove("sel"));
+    b.classList.add("sel");
+  });
+  stylesEl.appendChild(b);
+});
 
 /* --- generic control binders --- */
 function setToggleVisual(btn, on) {
