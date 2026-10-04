@@ -8,18 +8,20 @@ const SCALES = [
   { id:"blues", label:"Blues" }, { id:"chromatic", label:"Chromatic" },
 ];
 const PRESETS = {
-  natural:   { label:"Natural",    tune:{on:true, strength:45, retune:30}, deess:{on:true, amount:30}, comp:{on:true, amount:30}, warmth:50, clarity:40, reverb:30, delay:8 },
-  pop:       { label:"Modern Pop", tune:{on:true, strength:85, retune:60}, deess:{on:true, amount:45}, comp:{on:true, amount:55}, warmth:40, clarity:55, reverb:30, delay:12 },
-  hardtune:  { label:"Hard Tune",  tune:{on:true, strength:100, retune:100}, deess:{on:true, amount:50}, comp:{on:true, amount:60}, warmth:35, clarity:60, reverb:22, delay:14 },
-  ballad:    { label:"Warm Ballad",tune:{on:true, strength:60, retune:35}, deess:{on:true, amount:40}, comp:{on:true, amount:35}, warmth:70, clarity:35, reverb:45, delay:18 },
-  radio:     { label:"Radio Ready",tune:{on:true, strength:90, retune:75}, deess:{on:true, amount:55}, comp:{on:true, amount:75}, warmth:45, clarity:65, reverb:20, delay:10 },
+  natural:   { label:"Natural",    tune:{on:true, strength:45, retune:30}, deess:{on:true, amount:30}, comp:{on:true, amount:30}, sat:{on:true, amount:25}, warmth:50, clarity:40, reverb:30, delay:8 },
+  pop:       { label:"Modern Pop", tune:{on:true, strength:85, retune:60}, deess:{on:true, amount:45}, comp:{on:true, amount:55}, sat:{on:true, amount:35}, warmth:40, clarity:55, reverb:30, delay:12 },
+  hardtune:  { label:"Hard Tune",  tune:{on:true, strength:100, retune:100}, deess:{on:true, amount:50}, comp:{on:true, amount:60}, sat:{on:true, amount:45}, warmth:35, clarity:60, reverb:22, delay:14 },
+  ballad:    { label:"Warm Ballad",tune:{on:true, strength:60, retune:35}, deess:{on:true, amount:40}, comp:{on:true, amount:35}, sat:{on:true, amount:30}, warmth:70, clarity:35, reverb:45, delay:18 },
+  radio:     { label:"Radio Ready",tune:{on:true, strength:90, retune:75}, deess:{on:true, amount:55}, comp:{on:true, amount:75}, sat:{on:true, amount:40}, warmth:45, clarity:65, reverb:20, delay:10 },
 };
 const DEFAULT_STATE = {
   key: 0, scale: "major", preset: "pop", monitor: true,
   volume: 80, feedbackGuard: true, tipDismissed: false,
+  inGain: 0, delayTime: 0.27, bpm: null,
   tune: { on:true, strength:85, retune:60 },
   deess: { on:true, amount:45 },
   comp: { on:true, amount:55 },
+  sat: { on:true, amount:35 },
   warmth: 40, clarity: 55, reverb: 30, delay: 12,
 };
 
@@ -36,8 +38,20 @@ function save() { try { localStorage.setItem("voxpro.v1", JSON.stringify(S)); } 
 /* ---------------- audio engine ---------------- */
 let ctx = null, vox = null, stream = null;
 let comp, warmthF, presenceF, airF, master, reverbSend, convolver, delaySend, delayN, fbGain;
-let micHP, limiter, outGain;
+let micHP, limiter, outGain, inTrim, shaper;
 let live = false, meterFreq = null, meterLevel = 0;
+
+/** Soft-clip saturation curve; k<=0 gives a clean linear pass. */
+function makeDriveCurve(k) {
+  const n = 256, curve = new Float32Array(n);
+  if (k <= 0) { for (let i = 0; i < n; i++) curve[i] = (i / (n - 1)) * 2 - 1; return curve; }
+  const norm = Math.tanh(k);
+  for (let i = 0; i < n; i++) {
+    const x = (i / (n - 1)) * 2 - 1;
+    curve[i] = Math.tanh(k * x) / norm;
+  }
+  return curve;
+}
 
 function makeImpulse(ac, seconds, decay) {
   const rate = ac.sampleRate, len = Math.floor(rate * seconds);
@@ -80,14 +94,16 @@ async function goLive() {
     limiter.attack.value = 0.002; limiter.release.value = 0.12;
     outGain = ctx.createGain();
     micHP = ctx.createBiquadFilter(); micHP.type = "highpass"; micHP.frequency.value = 100;
+    inTrim = ctx.createGain();
+    shaper = ctx.createWaveShaper(); shaper.oversample = "2x";
     reverbSend = ctx.createGain();
     convolver = ctx.createConvolver(); convolver.buffer = makeImpulse(ctx, 1.8, 2.6);
     delaySend = ctx.createGain();
     delayN = ctx.createDelay(1); delayN.delayTime.value = 0.27;
     fbGain = ctx.createGain(); fbGain.gain.value = 0.32;
 
-    src.connect(micHP); micHP.connect(vox);
-    vox.connect(comp); comp.connect(warmthF); warmthF.connect(presenceF);
+    src.connect(micHP); micHP.connect(inTrim); inTrim.connect(vox);
+    vox.connect(comp); comp.connect(shaper); shaper.connect(warmthF); warmthF.connect(presenceF);
     presenceF.connect(airF); airF.connect(master);
     master.connect(limiter); limiter.connect(outGain); outGain.connect(ctx.destination);
     airF.connect(reverbSend); reverbSend.connect(convolver); convolver.connect(master);
@@ -142,6 +158,10 @@ function applyFx() {
   comp.threshold.value = -6 - c * 30;
   comp.ratio.value = 1 + c * 7;
   comp.attack.value = 0.004; comp.release.value = 0.2; comp.knee.value = 12;
+  const driveK = S.sat.on ? 1 + (S.sat.amount / 100) * 8 : 0;
+  shaper.curve = makeDriveCurve(driveK);
+  inTrim.gain.value = Math.pow(10, S.inGain / 20);
+  delayN.delayTime.value = S.delayTime;
   warmthF.gain.value = (S.warmth / 100) * 9;
   presenceF.gain.value = (S.clarity / 100) * 6;
   airF.gain.value = (S.clarity / 100) * 7;
@@ -275,6 +295,7 @@ function applyPreset(id) {
   S.tune = JSON.parse(JSON.stringify(p.tune));
   S.deess = JSON.parse(JSON.stringify(p.deess));
   S.comp = JSON.parse(JSON.stringify(p.comp));
+  S.sat = JSON.parse(JSON.stringify(p.sat));
   S.warmth = p.warmth; S.clarity = p.clarity; S.reverb = p.reverb; S.delay = p.delay;
   save(); pushSettings(); applyFx(); renderChain(); syncAtKnob();
   presetsEl.querySelectorAll("button").forEach(x => x.classList.toggle("sel", x.dataset.preset === id));
@@ -302,17 +323,81 @@ const STAGES = [
     { key:"strength", label:"Strength" }, { key:"retune", label:"Retune speed" } ] },
   { id:"deess", name:"De-Ess", sub:"Tames harsh S sounds", sliders:[ { key:"amount", label:"Amount" } ] },
   { id:"comp", name:"Compress", sub:"RVox-style vocal glue", sliders:[ { key:"amount", label:"Amount" } ] },
+  { id:"sat", name:"Saturation", sub:"Mantra-style grit and warmth", sliders:[ { key:"amount", label:"Drive" } ] },
   { id:"tone", name:"Tone", sub:"Warmth + clarity EQ", sliders:[
     { key:"warmth", label:"Warmth", root:true }, { key:"clarity", label:"Clarity", root:true } ] },
   { id:"space", name:"Space", sub:"Reverb + delay", sliders:[
     { key:"reverb", label:"Reverb", root:true }, { key:"delay", label:"Delay", root:true } ] },
 ];
+function renderCustomChips() {
+  const el = document.getElementById("customPresets");
+  if (!el) return;
+  el.innerHTML = "";
+  const all = getCustomPresets();
+  const names = Object.keys(all);
+  if (names.length === 0) {
+    el.innerHTML = `<span class="card-sub">None yet — dial in a sound and save it.</span>`;
+    return;
+  }
+  names.forEach(name => {
+    const chip = document.createElement("span");
+    chip.className = "custom-chip";
+    const label = document.createElement("button");
+    label.textContent = name;
+    label.addEventListener("click", () => applyCustomPreset(name));
+    const del = document.createElement("button");
+    del.textContent = "✕"; del.className = "chip-x"; del.setAttribute("aria-label", "Delete " + name);
+    del.addEventListener("click", (ev) => {
+      ev.stopPropagation();
+      const a = getCustomPresets(); delete a[name];
+      localStorage.setItem("voxpro.custom.v1", JSON.stringify(a));
+      renderCustomChips();
+    });
+    chip.appendChild(label); chip.appendChild(del);
+    el.appendChild(chip);
+  });
+}
+function applyCustomPreset(name) {
+  const s = getCustomPresets()[name];
+  if (!s) return;
+  const c = JSON.parse(JSON.stringify(s));
+  S.tune = c.tune; S.deess = c.deess; S.comp = c.comp; S.sat = c.sat || { on: false, amount: 0 };
+  S.warmth = c.warmth; S.clarity = c.clarity; S.reverb = c.reverb; S.delay = c.delay;
+  S.preset = "custom";
+  save(); pushSettings(); applyFx(); renderChain(); syncAtKnob();
+  presetsEl.querySelectorAll("button").forEach(x => x.classList.remove("sel"));
+}
 function getVal(stage, key, root) { return root ? S[key] : S[stage][key]; }
 function setVal(stage, key, root, v) { if (root) S[key] = v; else S[stage][key] = v; }
 
+function getCustomPresets() {
+  try { return JSON.parse(localStorage.getItem("voxpro.custom.v1") || "{}"); }
+  catch (e) { return {}; }
+}
 function renderChain() {
   const host = document.getElementById("stages");
   host.innerHTML = "";
+  // My Presets card
+  const pc = document.createElement("div");
+  pc.className = "stage on";
+  pc.innerHTML = `<div class="stage-head"><div class="stage-name">My Presets<small>Save the current chain, recall it anytime</small></div></div>
+    <div class="preset-save-row"><input id="presetName" placeholder="Preset name" maxlength="24"><button id="presetSaveBtn">Save</button></div>
+    <div id="customPresets" class="chips" style="margin-top:8px"></div>`;
+  host.appendChild(pc);
+  renderCustomChips();
+  document.getElementById("presetSaveBtn").addEventListener("click", () => {
+    const nameEl = document.getElementById("presetName");
+    const name = nameEl.value.trim();
+    if (!name) { nameEl.focus(); return; }
+    const all = getCustomPresets();
+    all[name] = JSON.parse(JSON.stringify({
+      tune: S.tune, deess: S.deess, comp: S.comp, sat: S.sat,
+      warmth: S.warmth, clarity: S.clarity, reverb: S.reverb, delay: S.delay,
+    }));
+    localStorage.setItem("voxpro.custom.v1", JSON.stringify(all));
+    nameEl.value = "";
+    renderCustomChips();
+  });
   STAGES.forEach(st => {
     const hasToggle = !["tone","space"].includes(st.id);
     const on = hasToggle ? S[st.id].on : true;
@@ -327,6 +412,10 @@ function renderChain() {
         `<input type="range" min="0" max="100" value="${v}" data-stage="${st.id}" data-key="${sl.key}" data-root="${sl.root ? 1 : 0}">` +
         `<output>${v}</output></div>`;
     });
+    if (st.id === "space") {
+      const bpmTxt = S.bpm ? S.bpm + " BPM · " + Math.round(S.delayTime * 1000) + "ms" : "tap the beat";
+      html += `<div class="slider-row"><label>Tempo</label><button id="tapBtn" class="mini-btn">TAP</button><output id="tapOut">${bpmTxt}</output></div>`;
+    }
     div.innerHTML = html;
     host.appendChild(div);
   });
@@ -346,6 +435,29 @@ function renderChain() {
       save(); pushSettings(); applyFx();
     });
   });
+  const tapBtn = host.querySelector("#tapBtn");
+  if (tapBtn) {
+    let taps = [], tapReset = null;
+    tapBtn.addEventListener("click", () => {
+      const now = performance.now();
+      taps.push(now);
+      if (taps.length > 6) taps.shift();
+      const out = host.querySelector("#tapOut");
+      if (taps.length >= 3) {
+        const iv = (taps[taps.length - 1] - taps[0]) / (taps.length - 1);
+        if (iv > 200 && iv < 2000) {
+          const bpm = Math.round(60000 / iv);
+          S.bpm = bpm;
+          S.delayTime = (60 / bpm) * 0.75; // dotted eighth
+          if (ctx && delayN) delayN.delayTime.value = S.delayTime;
+          save();
+          if (out) out.textContent = bpm + " BPM · " + Math.round(S.delayTime * 1000) + "ms";
+        }
+      } else if (out) out.textContent = "tap…";
+      clearTimeout(tapReset);
+      tapReset = setTimeout(() => { taps = []; }, 2500);
+    });
+  }
 }
 renderChain();
 
@@ -381,6 +493,15 @@ const fbTip = document.getElementById("fbTip");
 if (!S.tipDismissed) fbTip.hidden = false;
 document.getElementById("fbTipX").addEventListener("click", () => {
   S.tipDismissed = true; save(); fbTip.hidden = true;
+});
+
+const inGainSlider = document.getElementById("inGainSlider");
+inGainSlider.value = S.inGain || 0;
+document.getElementById("inGainOut").textContent = (S.inGain || 0) + "dB";
+inGainSlider.addEventListener("input", () => {
+  S.inGain = parseInt(inGainSlider.value, 10); save();
+  document.getElementById("inGainOut").textContent = S.inGain + "dB";
+  if (ctx && inTrim) inTrim.gain.value = Math.pow(10, S.inGain / 20);
 });
 
 /* ---------------- Studio: upload -> tune -> save ---------------- */
@@ -452,16 +573,18 @@ async function renderOfflineFx(tunedMono, sampleRate) {
   const comp = off.createDynamicsCompressor();
   comp.threshold.value = -6 - c * 30; comp.ratio.value = 1 + c * 7;
   comp.attack.value = 0.004; comp.release.value = 0.2; comp.knee.value = 12;
+  const sh = off.createWaveShaper(); sh.oversample = "2x";
+  sh.curve = makeDriveCurve(S.sat.on ? 1 + (S.sat.amount / 100) * 8 : 0);
   const wf = off.createBiquadFilter(); wf.type = "lowshelf"; wf.frequency.value = 200; wf.gain.value = (S.warmth / 100) * 9;
   const pf = off.createBiquadFilter(); pf.type = "peaking"; pf.frequency.value = 3200; pf.Q.value = 1; pf.gain.value = (S.clarity / 100) * 6;
   const af = off.createBiquadFilter(); af.type = "highshelf"; af.frequency.value = 10000; af.gain.value = (S.clarity / 100) * 7;
   const mst = off.createGain();
   const verb = off.createConvolver(); verb.buffer = makeImpulse(off, 1.8, 2.6);
   const rSend = off.createGain(); rSend.gain.value = (S.reverb / 100) * 0.9;
-  const dly = off.createDelay(1); dly.delayTime.value = 0.27;
+  const dly = off.createDelay(2); dly.delayTime.value = S.delayTime || 0.27;
   const fb = off.createGain(); fb.gain.value = 0.32;
   const dSend = off.createGain(); dSend.gain.value = (S.delay / 100) * 0.7;
-  src.connect(comp); comp.connect(wf); wf.connect(pf); pf.connect(af); af.connect(mst); mst.connect(off.destination);
+  src.connect(comp); comp.connect(sh); sh.connect(wf); wf.connect(pf); pf.connect(af); af.connect(mst); mst.connect(off.destination);
   af.connect(rSend); rSend.connect(verb); verb.connect(mst);
   af.connect(dSend); dSend.connect(dly); dly.connect(fb); fb.connect(dly); dly.connect(mst);
   src.start();

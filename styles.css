@@ -110,6 +110,17 @@ input[type=range]::-moz-range-thumb{width:20px; height:20px; border-radius:50%; 
   border-radius:12px; padding:12px 8px; font-weight:700; font-size:14px; cursor:pointer;}
 .mini-btn.primary{background:linear-gradient(180deg,#7dd7fc,#38bdf8); color:#04121f; border:0;}
 .mini-btn:disabled{opacity:.4;}
+.preset-save-row{display:flex; gap:8px; margin-top:8px;}
+.preset-save-row input{flex:1; background:var(--panel2); border:1px solid var(--line); color:var(--text);
+  border-radius:12px; padding:11px 12px; font-size:14px; outline:none;}
+.preset-save-row input:focus{border-color:var(--accent);}
+.preset-save-row button{background:var(--accent-dim); border:1px solid var(--accent); color:var(--accent);
+  border-radius:12px; padding:11px 18px; font-weight:700; font-size:14px; cursor:pointer;}
+.custom-chip{display:inline-flex; align-items:center; background:var(--panel2);
+  border:1px solid var(--accent); border-radius:999px; overflow:hidden;}
+.custom-chip button{background:none; border:0; color:var(--accent); font-size:13px; font-weight:700;
+  padding:8px 4px 8px 13px; cursor:pointer;}
+.custom-chip .chip-x{color:var(--muted); padding:8px 11px 8px 4px; font-size:12px;}
 .latency{font-size:26px; font-weight:800; color:var(--accent); font-variant-numeric:tabular-nums;}
 
 nav{position:fixed; left:0; right:0; bottom:0; z-index:10;
