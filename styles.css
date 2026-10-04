@@ -141,6 +141,11 @@ details.setup summary{color:var(--accent); font-weight:700; font-size:14px; curs
   border-radius:12px; padding:12px 8px; font-weight:700; font-size:14px; cursor:pointer;}
 .mini-btn.primary{background:linear-gradient(180deg,#7dd7fc,#38bdf8); color:#04121f; border:0;}
 .mini-btn:disabled{opacity:.4;}
+.freeze-btn{width:100%; border:1px solid var(--line); border-radius:16px; padding:16px;
+  background:var(--panel2); color:var(--text); font-size:16px; font-weight:800; cursor:pointer;
+  touch-action:none; user-select:none; -webkit-user-select:none;}
+.freeze-btn.held{background:var(--accent-dim); border-color:var(--accent); color:var(--accent);
+  box-shadow:0 0 18px rgba(56,189,248,.45);}
 .preset-save-row{display:flex; gap:8px; margin-top:8px;}
 .preset-save-row input{flex:1; background:var(--panel2); border:1px solid var(--line); color:var(--text);
   border-radius:12px; padding:11px 12px; font-size:14px; outline:none; min-width:0;}

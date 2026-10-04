@@ -42,6 +42,7 @@ let comp, warmthF, presenceF, airF, master, reverbSend, convolver, delaySend, de
 let micHP, limiter, outGain, inTrim, shaper, dblSend;
 let live = false, meterFreq = null, meterLevel = 0;
 let duckEnv = 0, revBase = 0, dlyBase = 0;
+let freezeHeld = false;
 
 /** Soft-clip saturation curve; k<=0 gives a clean linear pass. */
 function makeDriveCurve(k) {
@@ -149,6 +150,9 @@ function stopLive() {
   try { if (stream) stream.getTracks().forEach(t => t.stop()); } catch (e) {}
   try { if (ctx) ctx.close(); } catch (e) {}
   vox = null; ctx = null; stream = null; meterFreq = null;
+  freezeHeld = false;
+  const fz = document.getElementById("freezeBtn");
+  if (fz) { fz.classList.remove("held"); fz.textContent = "❄ Hold to Freeze"; }
   const btn = document.getElementById("goLive");
   btn.textContent = "🎤 Go Live"; btn.classList.remove("stop");
   setStatus("idle", "Ready");
@@ -167,6 +171,7 @@ function pushSettings() {
     tune: S.tune.on, strength: S.tune.strength / 100, retune: S.tune.retune / 100,
     maxShift: 3, key: S.key, scale: S.scale, deEss: S.deess.on ? S.deess.amount / 100 : 0,
     transpose: S.transpose || 0, gate: S.gate.on ? S.gate.amount / 100 : 0,
+    freeze: freezeHeld,
   }});
 }
 
@@ -413,6 +418,20 @@ const showDoubler = bindSlider("doublerSlider", "doublerOut", () => S.doubler ||
 /* Voice FX panel */
 bindToggle("satToggle", "sat");
 const showSat = bindSlider("satAmount", "satOut", () => S.sat.amount, (v) => { S.sat.amount = v; });
+
+/* Freeze: momentary hold-to-sustain button. Sends straight to the worklet. */
+const freezeBtn = document.getElementById("freezeBtn");
+function setFreeze(on) {
+  if (on === freezeHeld) return;
+  freezeHeld = on;
+  freezeBtn.classList.toggle("held", on);
+  freezeBtn.textContent = on ? "❄ Frozen — let go to release" : "❄ Hold to Freeze";
+  if (vox) vox.port.postMessage({ type: "settings", settings: { freeze: on } });
+}
+freezeBtn.addEventListener("pointerdown", (e) => { e.preventDefault(); setFreeze(true); });
+["pointerup", "pointerleave", "pointercancel"].forEach(ev =>
+  freezeBtn.addEventListener(ev, () => setFreeze(false)));
+freezeBtn.addEventListener("contextmenu", (e) => e.preventDefault());
 
 /* tap tempo for the delay */
 let taps = [], tapReset = null;
