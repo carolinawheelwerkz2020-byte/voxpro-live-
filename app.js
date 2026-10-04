@@ -8,11 +8,11 @@ const SCALES = [
   { id:"blues", label:"Blues" }, { id:"chromatic", label:"Chromatic" },
 ];
 const PRESETS = {
-  natural:   { label:"Natural",    tune:{on:true, strength:45, retune:30}, deess:{on:true, amount:30}, comp:{on:true, amount:30}, sat:{on:true, amount:25}, warmth:50, clarity:40, reverb:30, delay:8 },
-  pop:       { label:"Modern Pop", tune:{on:true, strength:85, retune:60}, deess:{on:true, amount:45}, comp:{on:true, amount:55}, sat:{on:true, amount:35}, warmth:40, clarity:55, reverb:30, delay:12 },
-  hardtune:  { label:"Hard Tune",  tune:{on:true, strength:100, retune:100}, deess:{on:true, amount:50}, comp:{on:true, amount:60}, sat:{on:true, amount:45}, warmth:35, clarity:60, reverb:22, delay:14 },
-  ballad:    { label:"Warm Ballad",tune:{on:true, strength:60, retune:35}, deess:{on:true, amount:40}, comp:{on:true, amount:35}, sat:{on:true, amount:30}, warmth:70, clarity:35, reverb:45, delay:18 },
-  radio:     { label:"Radio Ready",tune:{on:true, strength:90, retune:75}, deess:{on:true, amount:55}, comp:{on:true, amount:75}, sat:{on:true, amount:40}, warmth:45, clarity:65, reverb:20, delay:10 },
+  natural:   { label:"Natural",    tune:{on:true, strength:45, retune:30}, deess:{on:true, amount:30}, comp:{on:true, amount:30}, sat:{on:true, amount:25}, warmth:50, clarity:40, reverb:30, delay:8, doubler:20 },
+  pop:       { label:"Modern Pop", tune:{on:true, strength:85, retune:60}, deess:{on:true, amount:45}, comp:{on:true, amount:55}, sat:{on:true, amount:35}, warmth:40, clarity:55, reverb:30, delay:12, doubler:25 },
+  hardtune:  { label:"Hard Tune",  tune:{on:true, strength:100, retune:100}, deess:{on:true, amount:50}, comp:{on:true, amount:60}, sat:{on:true, amount:45}, warmth:35, clarity:60, reverb:22, delay:14, doubler:15 },
+  ballad:    { label:"Warm Ballad",tune:{on:true, strength:60, retune:35}, deess:{on:true, amount:40}, comp:{on:true, amount:35}, sat:{on:true, amount:30}, warmth:70, clarity:35, reverb:45, delay:18, doubler:30 },
+  radio:     { label:"Radio Ready",tune:{on:true, strength:90, retune:75}, deess:{on:true, amount:55}, comp:{on:true, amount:75}, sat:{on:true, amount:40}, warmth:45, clarity:65, reverb:20, delay:10, doubler:30 },
 };
 const DEFAULT_STATE = {
   key: 0, scale: "major", preset: "pop", monitor: true,
@@ -22,7 +22,7 @@ const DEFAULT_STATE = {
   deess: { on:true, amount:45 },
   comp: { on:true, amount:55 },
   sat: { on:true, amount:35 },
-  warmth: 40, clarity: 55, reverb: 30, delay: 12,
+  warmth: 40, clarity: 55, reverb: 30, delay: 12, doubler: 25,
 };
 
 let S = load();
@@ -38,7 +38,7 @@ function save() { try { localStorage.setItem("voxpro.v1", JSON.stringify(S)); } 
 /* ---------------- audio engine ---------------- */
 let ctx = null, vox = null, stream = null;
 let comp, warmthF, presenceF, airF, master, reverbSend, convolver, delaySend, delayN, fbGain;
-let micHP, limiter, outGain, inTrim, shaper;
+let micHP, limiter, outGain, inTrim, shaper, dblSend;
 let live = false, meterFreq = null, meterLevel = 0;
 
 /** Soft-clip saturation curve; k<=0 gives a clean linear pass. */
@@ -101,6 +101,20 @@ async function goLive() {
     delaySend = ctx.createGain();
     delayN = ctx.createDelay(1); delayN.delayTime.value = 0.27;
     fbGain = ctx.createGain(); fbGain.gain.value = 0.32;
+    // Doubler: two short modulated delays for Waves-style vocal thickening
+    dblSend = ctx.createGain();
+    [
+      { dt: 0.020, lfo: 0.45, depth: 0.0022 },
+      { dt: 0.031, lfo: 0.62, depth: 0.0018 },
+    ].forEach(v => {
+      const d = ctx.createDelay(0.1); d.delayTime.value = v.dt;
+      const lfo = ctx.createOscillator(); lfo.frequency.value = v.lfo;
+      const lg = ctx.createGain(); lg.gain.value = v.depth;
+      lfo.connect(lg); lg.connect(d.delayTime); lfo.start();
+      const g = ctx.createGain(); g.gain.value = 0.5;
+      dblSend.connect(d); d.connect(g); g.connect(master);
+    });
+    airF.connect(dblSend);
 
     src.connect(micHP); micHP.connect(inTrim); inTrim.connect(vox);
     vox.connect(comp); comp.connect(shaper); shaper.connect(warmthF); warmthF.connect(presenceF);
@@ -162,6 +176,7 @@ function applyFx() {
   shaper.curve = makeDriveCurve(driveK);
   inTrim.gain.value = Math.pow(10, S.inGain / 20);
   delayN.delayTime.value = S.delayTime;
+  dblSend.gain.value = ((S.doubler || 0) / 100) * 0.8;
   warmthF.gain.value = (S.warmth / 100) * 9;
   presenceF.gain.value = (S.clarity / 100) * 6;
   airF.gain.value = (S.clarity / 100) * 7;
@@ -297,6 +312,7 @@ function applyPreset(id) {
   S.comp = JSON.parse(JSON.stringify(p.comp));
   S.sat = JSON.parse(JSON.stringify(p.sat));
   S.warmth = p.warmth; S.clarity = p.clarity; S.reverb = p.reverb; S.delay = p.delay;
+  S.doubler = p.doubler != null ? p.doubler : 25;
   save(); pushSettings(); applyFx(); renderChain(); syncAtKnob();
   presetsEl.querySelectorAll("button").forEach(x => x.classList.toggle("sel", x.dataset.preset === id));
 }
@@ -324,6 +340,8 @@ const STAGES = [
   { id:"deess", name:"De-Ess", sub:"Tames harsh S sounds", sliders:[ { key:"amount", label:"Amount" } ] },
   { id:"comp", name:"Compress", sub:"RVox-style vocal glue", sliders:[ { key:"amount", label:"Amount" } ] },
   { id:"sat", name:"Saturation", sub:"Mantra-style grit and warmth", sliders:[ { key:"amount", label:"Drive" } ] },
+  { id:"doubler", name:"Doubler", sub:"Waves-style vocal thickening", sliders:[
+    { key:"doubler", label:"Amount", root:true } ] },
   { id:"tone", name:"Tone", sub:"Warmth + clarity EQ", sliders:[
     { key:"warmth", label:"Warmth", root:true }, { key:"clarity", label:"Clarity", root:true } ] },
   { id:"space", name:"Space", sub:"Reverb + delay", sliders:[
@@ -363,6 +381,7 @@ function applyCustomPreset(name) {
   const c = JSON.parse(JSON.stringify(s));
   S.tune = c.tune; S.deess = c.deess; S.comp = c.comp; S.sat = c.sat || { on: false, amount: 0 };
   S.warmth = c.warmth; S.clarity = c.clarity; S.reverb = c.reverb; S.delay = c.delay;
+  S.doubler = c.doubler || 0;
   S.preset = "custom";
   save(); pushSettings(); applyFx(); renderChain(); syncAtKnob();
   presetsEl.querySelectorAll("button").forEach(x => x.classList.remove("sel"));
@@ -393,6 +412,7 @@ function renderChain() {
     all[name] = JSON.parse(JSON.stringify({
       tune: S.tune, deess: S.deess, comp: S.comp, sat: S.sat,
       warmth: S.warmth, clarity: S.clarity, reverb: S.reverb, delay: S.delay,
+      doubler: S.doubler || 0,
     }));
     localStorage.setItem("voxpro.custom.v1", JSON.stringify(all));
     nameEl.value = "";
@@ -584,7 +604,21 @@ async function renderOfflineFx(tunedMono, sampleRate) {
   const dly = off.createDelay(2); dly.delayTime.value = S.delayTime || 0.27;
   const fb = off.createGain(); fb.gain.value = 0.32;
   const dSend = off.createGain(); dSend.gain.value = (S.delay / 100) * 0.7;
+  // Doubler voices (same as live)
+  const dblSend = off.createGain(); dblSend.gain.value = ((S.doubler || 0) / 100) * 0.8;
+  [
+    { dt: 0.020, lfo: 0.45, depth: 0.0022 },
+    { dt: 0.031, lfo: 0.62, depth: 0.0018 },
+  ].forEach(v => {
+    const d = off.createDelay(0.1); d.delayTime.value = v.dt;
+    const lfo = off.createOscillator(); lfo.frequency.value = v.lfo;
+    const lg = off.createGain(); lg.gain.value = v.depth;
+    lfo.connect(lg); lg.connect(d.delayTime); lfo.start();
+    const g = off.createGain(); g.gain.value = 0.5;
+    dblSend.connect(d); d.connect(g); g.connect(mst);
+  });
   src.connect(comp); comp.connect(sh); sh.connect(wf); wf.connect(pf); pf.connect(af); af.connect(mst); mst.connect(off.destination);
+  af.connect(dblSend);
   af.connect(rSend); rSend.connect(verb); verb.connect(mst);
   af.connect(dSend); dSend.connect(dly); dly.connect(fb); fb.connect(dly); dly.connect(mst);
   src.start();
