@@ -8,11 +8,11 @@ const SCALES = [
   { id:"blues", label:"Blues" }, { id:"chromatic", label:"Chromatic" },
 ];
 const PRESETS = {
-  natural:   { label:"Natural",    tune:{on:true, strength:45, retune:30}, gate:{on:true, amount:30}, deess:{on:true, amount:30}, comp:{on:true, amount:30}, sat:{on:true, amount:25}, warmth:50, clarity:40, reverb:30, delay:8, doubler:20, duck:25 },
-  pop:       { label:"Modern Pop", tune:{on:true, strength:85, retune:60}, gate:{on:true, amount:30}, deess:{on:true, amount:45}, comp:{on:true, amount:55}, sat:{on:true, amount:35}, warmth:40, clarity:55, reverb:30, delay:12, doubler:25, duck:35 },
-  hardtune:  { label:"Hard Tune",  tune:{on:true, strength:100, retune:100}, gate:{on:true, amount:30}, deess:{on:true, amount:50}, comp:{on:true, amount:60}, sat:{on:true, amount:45}, warmth:35, clarity:60, reverb:22, delay:14, doubler:15, duck:30 },
-  ballad:    { label:"Warm Ballad",tune:{on:true, strength:60, retune:35}, gate:{on:true, amount:30}, deess:{on:true, amount:40}, comp:{on:true, amount:35}, sat:{on:true, amount:30}, warmth:70, clarity:35, reverb:45, delay:18, doubler:30, duck:40 },
-  radio:     { label:"Radio Ready",tune:{on:true, strength:90, retune:75}, gate:{on:true, amount:30}, deess:{on:true, amount:55}, comp:{on:true, amount:75}, sat:{on:true, amount:40}, warmth:45, clarity:65, reverb:20, delay:10, doubler:30, duck:30 },
+  natural:   { label:"Natural",    tune:{on:true, strength:45, retune:30}, gate:{on:true, amount:30}, deess:{on:true, amount:30}, comp:{on:true, amount:30}, sat:{on:true, amount:25}, warmth:50, clarity:40, reverb:30, delay:8, doubler:20, duck:25, harmony:{on:true, amount:20} },
+  pop:       { label:"Modern Pop", tune:{on:true, strength:85, retune:60}, gate:{on:true, amount:30}, deess:{on:true, amount:45}, comp:{on:true, amount:55}, sat:{on:true, amount:35}, warmth:40, clarity:55, reverb:30, delay:12, doubler:25, duck:35, harmony:{on:true, amount:30} },
+  hardtune:  { label:"Hard Tune",  tune:{on:true, strength:100, retune:100}, gate:{on:true, amount:30}, deess:{on:true, amount:50}, comp:{on:true, amount:60}, sat:{on:true, amount:45}, warmth:35, clarity:60, reverb:22, delay:14, doubler:15, duck:30, harmony:{on:true, amount:15} },
+  ballad:    { label:"Warm Ballad",tune:{on:true, strength:60, retune:35}, gate:{on:true, amount:30}, deess:{on:true, amount:40}, comp:{on:true, amount:35}, sat:{on:true, amount:30}, warmth:70, clarity:35, reverb:45, delay:18, doubler:30, duck:40, harmony:{on:true, amount:30} },
+  radio:     { label:"Radio Ready",tune:{on:true, strength:90, retune:75}, gate:{on:true, amount:30}, deess:{on:true, amount:55}, comp:{on:true, amount:75}, sat:{on:true, amount:40}, warmth:45, clarity:65, reverb:20, delay:10, doubler:30, duck:30, harmony:{on:true, amount:30} },
 };
 const DEFAULT_STATE = {
   key: 0, scale: "major", preset: "pop", monitor: true,
@@ -24,6 +24,7 @@ const DEFAULT_STATE = {
   comp: { on:true, amount:55 },
   sat: { on:true, amount:35 },
   warmth: 40, clarity: 55, reverb: 30, delay: 12, doubler: 25, duck: 35,
+  harmony: { on: true, amount: 30 },
 };
 
 let S = load();
@@ -171,7 +172,7 @@ function pushSettings() {
     tune: S.tune.on, strength: S.tune.strength / 100, retune: S.tune.retune / 100,
     maxShift: 3, key: S.key, scale: S.scale, deEss: S.deess.on ? S.deess.amount / 100 : 0,
     transpose: S.transpose || 0, gate: S.gate.on ? S.gate.amount / 100 : 0,
-    freeze: freezeHeld,
+    freeze: freezeHeld, harmony: S.harmony.on ? S.harmony.amount / 100 : 0,
   }});
 }
 
@@ -345,6 +346,7 @@ function applyPreset(id) {
   S.warmth = p.warmth; S.clarity = p.clarity; S.reverb = p.reverb; S.delay = p.delay;
   S.doubler = p.doubler != null ? p.doubler : 25;
   S.duck = p.duck != null ? p.duck : 35;
+  S.harmony = JSON.parse(JSON.stringify(p.harmony || { on: true, amount: 30 }));
   save(); pushSettings(); applyFx(); syncDashboard();
   presetsEl.querySelectorAll("button").forEach(x => x.classList.toggle("sel", x.dataset.preset === id));
 }
@@ -376,12 +378,14 @@ function bindSlider(id, outId, get, set, fmt) {
     if (id === "deessAmount") S.deess.on = true;
     if (id === "compAmount") S.comp.on = true;
     if (id === "satAmount") S.sat.on = true;
+    if (id === "harmAmount") S.harmony.on = true;
     markCustom(); save(); pushSettings(); applyFx(); syncToggles();
     show();
   });
   return show;
 }
 function syncToggles() {
+  setToggleVisual(document.getElementById("harmToggle"), S.harmony.on);
   setToggleVisual(document.getElementById("gateToggle"), S.gate.on);
   setToggleVisual(document.getElementById("deessToggle"), S.deess.on);
   setToggleVisual(document.getElementById("compToggle"), S.comp.on);
@@ -418,6 +422,9 @@ const showDoubler = bindSlider("doublerSlider", "doublerOut", () => S.doubler ||
 /* Voice FX panel */
 bindToggle("satToggle", "sat");
 const showSat = bindSlider("satAmount", "satOut", () => S.sat.amount, (v) => { S.sat.amount = v; });
+
+bindToggle("harmToggle", "harmony");
+const showHarm = bindSlider("harmAmount", "harmOut", () => S.harmony.amount, (v) => { S.harmony.amount = v; });
 
 /* Freeze: momentary hold-to-sustain button. Sends straight to the worklet. */
 const freezeBtn = document.getElementById("freezeBtn");
@@ -463,7 +470,7 @@ function syncDashboard() {
   showGate(); showDeess(); showComp();
   showWarmth(); showClarity();
   showReverb(); showDelay(); showDuck(); showDoubler();
-  showSat(); syncToggles();
+  showSat(); showHarm(); syncToggles();
 }
 
 /* --- custom presets --- */
@@ -507,6 +514,7 @@ function applyCustomPreset(name) {
   S.doubler = c.doubler || 0; S.transpose = c.transpose || 0;
   S.gate = c.gate || { on: true, amount: 30 };
   S.duck = c.duck != null ? c.duck : 35;
+  S.harmony = c.harmony || { on: true, amount: 30 };
   S.preset = "custom";
   save(); pushSettings(); applyFx(); syncDashboard();
   presetsEl.querySelectorAll("button").forEach(x => x.classList.remove("sel"));
@@ -593,6 +601,7 @@ function studioSettings() {
     tune: S.tune.on, strength: S.tune.strength / 100, retune: S.tune.retune / 100,
     maxShift: 3, key: S.key, scale: S.scale, transpose: S.transpose || 0,
     gate: S.gate.on ? S.gate.amount / 100 : 0,
+    harmony: S.harmony.on ? S.harmony.amount / 100 : 0,
     clarity: S.clarity / 100, warmth: S.warmth / 100,
     deEss: S.deess.on ? S.deess.amount / 100 : 0,
     compression: S.comp.on ? S.comp.amount / 100 : 0,
@@ -632,7 +641,7 @@ document.getElementById("studioFile").addEventListener("change", async (e) => {
   }
 });
 
-async function renderOfflineFx(tunedMono, sampleRate) {
+async function renderOfflineFx(tunedMono, sampleRate, harm) {
   const len = tunedMono.length;
   const off = new OfflineAudioContext(2, len, sampleRate);
   const buf = off.createBuffer(1, len, sampleRate);
@@ -669,6 +678,19 @@ async function renderOfflineFx(tunedMono, sampleRate) {
   });
   src.connect(comp); comp.connect(sh); sh.connect(wf); wf.connect(pf); pf.connect(af); af.connect(mst); mst.connect(off.destination);
   af.connect(dblSend);
+  // Studio harmonies: panned background singers through the same FX chain
+  const hm = (S.harmony.on ? S.harmony.amount / 100 : 0);
+  if (harm && hm > 0.01 && harm.harm1 && harm.harm2) {
+    [[harm.harm1, -0.5], [harm.harm2, 0.5]].forEach(([h, pan]) => {
+      const hb = off.createBuffer(1, len, sampleRate);
+      hb.getChannelData(0).set(h);
+      const hs = off.createBufferSource(); hs.buffer = hb;
+      const hg = off.createGain(); hg.gain.value = hm;
+      const hp = off.createStereoPanner(); hp.pan.value = pan;
+      hs.connect(hg); hg.connect(hp); hp.connect(comp);
+      hs.start();
+    });
+  }
   af.connect(rSend); rSend.connect(verb); verb.connect(mst);
   af.connect(dSend); dSend.connect(dly); dly.connect(fb); fb.connect(dly); dly.connect(mst);
   // Studio ducking: automate the space sends against the vocal envelope
@@ -722,7 +744,7 @@ document.getElementById("studioProcess").addEventListener("click", async () => {
     const res = await VoxStudio.processTake(studioBuf.mono, studioBuf.sampleRate, studioSettings(), setStudioStatus);
     setStudioStatus("Adding effects…");
     await new Promise(r => setTimeout(r, 30));
-    studioRendered = await renderOfflineFx(res.tuned, studioBuf.sampleRate);
+    studioRendered = await renderOfflineFx(res.tuned, studioBuf.sampleRate, res);
     document.getElementById("studioStats").textContent =
       "In tune: " + Math.round(res.beforePct * 100) + "% → " + Math.round(res.afterPct * 100) + "%" +
       (res.corrected ? "" : " (already in tune — nothing to fix)");

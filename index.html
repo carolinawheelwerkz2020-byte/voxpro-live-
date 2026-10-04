@@ -86,6 +86,11 @@
           <button id="freezeBtn" class="freeze-btn">❄ Hold to Freeze</button>
           <p class="hint" style="margin:6px 0 2px">Hold it — your last second loops until you let go.</p>
           <div class="ctl">
+            <div class="ctl-head"><span>Harmony</span><button id="harmToggle" class="toggle on" aria-pressed="true"><span></span></button></div>
+            <div class="slider-row"><label>Amount</label><input type="range" id="harmAmount" min="0" max="100" value="30"><output id="harmOut">30</output></div>
+          </div>
+          <p class="hint" style="margin:2px 0 8px">Two background singers — a 3rd and 5th above, locked to your key.</p>
+          <div class="ctl">
             <div class="ctl-head"><span>Saturation</span><button id="satToggle" class="toggle on" aria-pressed="true"><span></span></button></div>
             <div class="slider-row"><label>Drive</label><input type="range" id="satAmount" min="0" max="100" value="35"><output id="satOut">35</output></div>
           </div>
