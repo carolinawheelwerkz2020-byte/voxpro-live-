@@ -8,16 +8,17 @@ const SCALES = [
   { id:"blues", label:"Blues" }, { id:"chromatic", label:"Chromatic" },
 ];
 const PRESETS = {
-  natural:   { label:"Natural",    tune:{on:true, strength:45, retune:30}, deess:{on:true, amount:30}, comp:{on:true, amount:30}, sat:{on:true, amount:25}, warmth:50, clarity:40, reverb:30, delay:8, doubler:20 },
-  pop:       { label:"Modern Pop", tune:{on:true, strength:85, retune:60}, deess:{on:true, amount:45}, comp:{on:true, amount:55}, sat:{on:true, amount:35}, warmth:40, clarity:55, reverb:30, delay:12, doubler:25 },
-  hardtune:  { label:"Hard Tune",  tune:{on:true, strength:100, retune:100}, deess:{on:true, amount:50}, comp:{on:true, amount:60}, sat:{on:true, amount:45}, warmth:35, clarity:60, reverb:22, delay:14, doubler:15 },
-  ballad:    { label:"Warm Ballad",tune:{on:true, strength:60, retune:35}, deess:{on:true, amount:40}, comp:{on:true, amount:35}, sat:{on:true, amount:30}, warmth:70, clarity:35, reverb:45, delay:18, doubler:30 },
-  radio:     { label:"Radio Ready",tune:{on:true, strength:90, retune:75}, deess:{on:true, amount:55}, comp:{on:true, amount:75}, sat:{on:true, amount:40}, warmth:45, clarity:65, reverb:20, delay:10, doubler:30 },
+  natural:   { label:"Natural",    tune:{on:true, strength:45, retune:30}, gate:{on:true, amount:30}, deess:{on:true, amount:30}, comp:{on:true, amount:30}, sat:{on:true, amount:25}, warmth:50, clarity:40, reverb:30, delay:8, doubler:20 },
+  pop:       { label:"Modern Pop", tune:{on:true, strength:85, retune:60}, gate:{on:true, amount:30}, deess:{on:true, amount:45}, comp:{on:true, amount:55}, sat:{on:true, amount:35}, warmth:40, clarity:55, reverb:30, delay:12, doubler:25 },
+  hardtune:  { label:"Hard Tune",  tune:{on:true, strength:100, retune:100}, gate:{on:true, amount:30}, deess:{on:true, amount:50}, comp:{on:true, amount:60}, sat:{on:true, amount:45}, warmth:35, clarity:60, reverb:22, delay:14, doubler:15 },
+  ballad:    { label:"Warm Ballad",tune:{on:true, strength:60, retune:35}, gate:{on:true, amount:30}, deess:{on:true, amount:40}, comp:{on:true, amount:35}, sat:{on:true, amount:30}, warmth:70, clarity:35, reverb:45, delay:18, doubler:30 },
+  radio:     { label:"Radio Ready",tune:{on:true, strength:90, retune:75}, gate:{on:true, amount:30}, deess:{on:true, amount:55}, comp:{on:true, amount:75}, sat:{on:true, amount:40}, warmth:45, clarity:65, reverb:20, delay:10, doubler:30 },
 };
 const DEFAULT_STATE = {
   key: 0, scale: "major", preset: "pop", monitor: true,
   volume: 80, feedbackGuard: true, tipDismissed: false,
   inGain: 0, delayTime: 0.27, bpm: null, transpose: 0,
+  gate: { on: true, amount: 30 },
   tune: { on:true, strength:85, retune:60 },
   deess: { on:true, amount:45 },
   comp: { on:true, amount:55 },
@@ -164,7 +165,7 @@ function pushSettings() {
   vox.port.postMessage({ type: "settings", settings: {
     tune: S.tune.on, strength: S.tune.strength / 100, retune: S.tune.retune / 100,
     maxShift: 3, key: S.key, scale: S.scale, deEss: S.deess.on ? S.deess.amount / 100 : 0,
-    transpose: S.transpose || 0,
+    transpose: S.transpose || 0, gate: S.gate.on ? S.gate.amount / 100 : 0,
   }});
 }
 
@@ -310,6 +311,7 @@ function applyPreset(id) {
   if (!p) return;
   S.preset = id;
   S.tune = JSON.parse(JSON.stringify(p.tune));
+  S.gate = JSON.parse(JSON.stringify(p.gate));
   S.deess = JSON.parse(JSON.stringify(p.deess));
   S.comp = JSON.parse(JSON.stringify(p.comp));
   S.sat = JSON.parse(JSON.stringify(p.sat));
@@ -353,6 +355,8 @@ syncTransposeKnob();
 
 /* chain screen */
 const STAGES = [
+  { id:"gate", name:"Noise Gate", sub:"Cuts room noise between lines", sliders:[
+    { key:"amount", label:"Threshold" } ] },
   { id:"tune", name:"Auto-Tune", sub:"Waves Tune-style pitch correction", sliders:[
     { key:"strength", label:"Strength" }, { key:"retune", label:"Retune speed" } ] },
   { id:"deess", name:"De-Ess", sub:"Tames harsh S sounds", sliders:[ { key:"amount", label:"Amount" } ] },
@@ -400,6 +404,7 @@ function applyCustomPreset(name) {
   S.tune = c.tune; S.deess = c.deess; S.comp = c.comp; S.sat = c.sat || { on: false, amount: 0 };
   S.warmth = c.warmth; S.clarity = c.clarity; S.reverb = c.reverb; S.delay = c.delay;
   S.doubler = c.doubler || 0; S.transpose = c.transpose || 0;
+  S.gate = c.gate || { on: true, amount: 30 };
   S.preset = "custom";
   save(); pushSettings(); applyFx(); renderChain(); syncAtKnob(); syncTransposeKnob();
   presetsEl.querySelectorAll("button").forEach(x => x.classList.remove("sel"));
@@ -431,6 +436,7 @@ function renderChain() {
       tune: S.tune, deess: S.deess, comp: S.comp, sat: S.sat,
       warmth: S.warmth, clarity: S.clarity, reverb: S.reverb, delay: S.delay,
       doubler: S.doubler || 0, transpose: S.transpose || 0,
+      gate: S.gate,
     }));
     localStorage.setItem("voxpro.custom.v1", JSON.stringify(all));
     nameEl.value = "";
@@ -562,6 +568,7 @@ function studioSettings() {
   return {
     tune: S.tune.on, strength: S.tune.strength / 100, retune: S.tune.retune / 100,
     maxShift: 3, key: S.key, scale: S.scale, transpose: S.transpose || 0,
+    gate: S.gate.on ? S.gate.amount / 100 : 0,
     clarity: S.clarity / 100, warmth: S.warmth / 100,
     deEss: S.deess.on ? S.deess.amount / 100 : 0,
     compression: S.comp.on ? S.comp.amount / 100 : 0,
