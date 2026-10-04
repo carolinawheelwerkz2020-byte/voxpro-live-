@@ -22,6 +22,7 @@ const STYLES = {
   soul:     { label:"Trap Soul",    tune:{on:true, strength:55, retune:40}, gate:{on:true, amount:30}, deess:{on:true, amount:40}, comp:{on:true, amount:45}, sat:{on:true, amount:30}, warmth:70, clarity:40, reverb:45, delay:15, doubler:25, duck:40, harmony:{on:true, amount:35}, transpose:0 },
   monster:  { label:"Dungeon Monster", tune:{on:true, strength:90, retune:80}, gate:{on:true, amount:30}, deess:{on:true, amount:45}, comp:{on:true, amount:60}, sat:{on:true, amount:55}, warmth:50, clarity:40, reverb:40, delay:20, doubler:20, duck:35, harmony:{on:true, amount:15}, transpose:-7 },
   chipmunk: { label:"Chipmunk Soul", tune:{on:true, strength:85, retune:70}, gate:{on:true, amount:30}, deess:{on:true, amount:45}, comp:{on:true, amount:50}, sat:{on:true, amount:35}, warmth:45, clarity:60, reverb:35, delay:20, doubler:25, duck:35, harmony:{on:true, amount:25}, transpose:7 },
+  metalcore:{ label:"Metalcore Cleans", tune:{on:true, strength:85, retune:70}, gate:{on:true, amount:35}, deess:{on:true, amount:50}, comp:{on:true, amount:80}, sat:{on:true, amount:55}, warmth:45, clarity:60, reverb:40, delay:15, doubler:30, duck:40, harmony:{on:true, amount:25}, transpose:0 },
   anthem:   { label:"Stadium Anthem", tune:{on:true, strength:80, retune:65}, gate:{on:true, amount:30}, deess:{on:true, amount:45}, comp:{on:true, amount:65}, sat:{on:true, amount:40}, warmth:50, clarity:60, reverb:60, delay:25, doubler:40, duck:45, harmony:{on:true, amount:40}, transpose:0 },
 };
 const DEFAULT_STATE = {
@@ -279,6 +280,8 @@ function updateScreens() {
   if (gs) gs.textContent = !live ? "STANDBY" : (!S.gate.on ? "BYPASSED" : (meterGate < 0.5 ? "SHUT" : "OPEN"));
   const df = document.getElementById("dynMeterFill");
   if (df) df.style.width = (Math.min(1, meterLevel) * 100).toFixed(1) + "%";
+  const gr = document.getElementById("grScreen");
+  if (gr) gr.textContent = "GR " + (!live || !comp ? "--" : comp.reduction.toFixed(1) + "dB");
   const ts = document.getElementById("toneScreen");
   if (ts) ts.textContent = "WARM " + S.warmth + " · AIR " + S.clarity;
   const ss = document.getElementById("spaceScreen");
